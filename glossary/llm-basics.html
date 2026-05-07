@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · LLM 基础概念</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '·'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 06 ]</div>
+<h1>LLM 基础概念</h1>
+<p class="subtitle">理解大语言模型的核心机制——它是怎么生成文字的、为什么会"犯错"、以及如何控制它。</p>
+
+<div class="term-section">
+<h2>自回归模型 (Autoregressive Model)</h2>
+<div class="cn-name">Autoregressive LLM</div>
+<h3>白话解释</h3>
+<p>自回归是当前所有主流大模型（GPT、Claude、Gemini 等）生成文本的方式。它的核心逻辑非常简单：<strong>一次生成一个 token，每个新 token 都依赖于之前生成的所有 token。</strong></p>
+<p>想象你在用手机输入法的"联想词"功能——你打了"我今天"，输入法建议"去"、"想"、"很"，你选了"去"，然后输入法又建议"超市"、"上班"、"公园"...这就是自回归：每一步的选择都基于前面所有步骤的结果。</p>
+<p>大模型的区别在于：它不是基于统计规则，而是通过数十亿参数的网络计算出每个可能的下一个 token 的概率分布，然后从中采样。同一个输入可能产生不同的输出——这就是为什么同一个问题 ChatGPT 每次回答可能略有不同。</p>
+<div class="code-block"><span class="cm">// 自回归生成过程 (极简版)</span>
+输入: "法国的首都是"
+↓
+第1步: P(下个token) = { "巴黎": 95%, "伦敦": 2%, "柏林": 1%, ... }
+       采样 → "巴黎"
+第2步: 输入变为 "法国的首都是巴黎"
+       P(下个token) = { ",": 60%, "。": 30%, "位于": 8%, ... }
+       采样 → "，"
+第3步: 输入变为 "法国的首都是巴黎，"
+       P(下个token) = { "是": 50%, "位于": 35%, ... }
+       ... 以此类推，直到生成终止符
+
+<span class="cm">// 关键特征: 每个 token 的概率都依赖于前面所有的 token</span>
+<span class="cm">// 这就是为什么 CoT (思维链) 有效——</span>
+<span class="cm">//   前面的推理步骤会影响后续 token 的概率分布</span></div>
+<div class="insight">
+<strong>关键洞察：</strong>"自回归"这个名字中的"自"（auto）指的是模型用自己之前生成的输出来预测下一个输出。这形成了一个循环：输出变输入 → 影响下一次输出 → 再变输入。这个循环既是巨大能力的来源（能产生连贯的长文本），也是根本局限的所在（错误会累积，模型无法"回头修改"已生成的内容）。
+</div>
+</div>
+
+<div class="term-section">
+<h2>幻觉 (Hallucination)</h2>
+<div class="cn-name">AI Hallucination</div>
+<h3>白话解释</h3>
+<p>幻觉是指大模型生成的内容看起来合理、但实际上不符合事实。比如它可能"发明"一篇不存在的论文、编造一个历史事件的日期、或者声称某个法律有某条规定（实际上没有）。</p>
+<p>幻觉不是模型在"撒谎"——模型没有主观意图。它只是在做它被训练要做的事情：<strong>给定上文，预测最可能的下一个 token</strong>。当训练数据中关于某个话题的信息不足、或存在矛盾的表述时，模型就会"脑补"出看起来合理但实际上错误的回答。</p>
+<h3>为什么模型会产生幻觉？</h3>
+<ul>
+<li><strong>训练数据局限：</strong>模型的知识来自训练数据，训练数据本身可能包含错误、偏见或过时信息。</li>
+<li><strong>概率驱动：</strong>当模型不确定时，它仍会选择概率最高的 token 组合——即使那个组合恰好是错的。</li>
+<li><strong>缺乏验证机制：</strong>基础模型没有"事实检查"的能力，它不能查资料、不能做实验、不能验证自己的输出。</li>
+<li><strong>过度泛化：</strong>模型可能在训练中学到了一些模式，然后把这个模式错误地应用到了不适用的场景。</li>
+</ul>
+<h3>Agent 框架如何对抗幻觉？</h3>
+<p>RAG 检索真实文档作为参考、Function Calling 让模型调用外部工具验证信息、ReAct 循环让模型在观察到错误时自我纠正——这些都是 Agent 架构对抗幻觉的工程手段。</p>
+</div>
+
+<div class="term-section">
+<h2>System Prompt (系统提示词)</h2>
+<div class="cn-name">System Prompt / 系统指令</div>
+<h3>白话解释</h3>
+<p>System Prompt 是在用户对话开始之前，由开发者写给模型的"元指令"。它定义了模型的行为边界、角色设定、输出格式等。用户看不到它，但它深刻影响着模型的每一次回复。</p>
+<p>你可以把 System Prompt 理解为模型的"人格设定"或"工作说明"。比如："你是一个专业的法律顾问，回答必须基于法律条文，不确定时请明确表示不确定。"这条指令会在整个对话中持续生效，直到上下文窗口被填满。</p>
+<div class="code-block"><span class="cm">// 典型的 System Prompt 结构</span>
+你是 Claude Code，一个 AI 编程助手。
+- 你可以读写文件、执行命令、搜索代码库
+- 始终优先使用简洁的方案
+- 在修改代码前先分析问题
+- 如果不确定，主动提问而非假设
+- 用中文与用户交流
+
+<span class="cm">// 这个 System Prompt 塑造了模型的整个行为模式</span></div>
+</div>
+
+<div class="term-section">
+<h2>KV Cache (键值缓存)</h2>
+<div class="cn-name">Key-Value Cache</div>
+<h3>白话解释</h3>
+<p>KV Cache 是 Transformer 模型在生成多个 token 时的性能优化技术。简单说：模型每生成一个 token 时，都需要计算"注意力"——当前 token 应该"关注"之前哪些 token。如果没有缓存，每次生成新 token 时都要把之前所有 token 的 Key 和 Value 重新算一遍，这会导致计算量平方级增长。</p>
+<p>KV Cache 的做法是：把已经计算过的 Key 和 Value 存起来，生成下一个 token 时只需计算新 token 的 Key 和 Value，然后和缓存的一起做注意力计算。这让生成速度从 O(n²) 降到 O(n)。</p>
+<div class="insight">
+<strong>关键洞察：</strong>KV Cache 是上下文窗口无法无限扩大的物理原因之一。每个 token 的 KV Cache 占用约 2×层数×维度×精度 的内存。对于 70B 参数的模型，128K 上下文的 KV Cache 可能需要几十 GB 显存。窗口越大，GPU 内存压力越大，这就是"窗口-成本-速度"三者不可兼得的根本原因。
+</div>
+</div>
+
+<div class="term-section">
+<h2>Prompt (提示词)</h2>
+<div class="cn-name">提示词 / 提示模板</div>
+<h3>白话解释</h3>
+<p>Prompt 是你给大模型的输入文本。它可以是简单的一句话（"翻译这段文字"），也可以是一个精心设计的模板（包含角色设定、输出格式、思维链指令、示例等）。Prompt 的质量直接影响模型的输出质量。</p>
+<p>在 Agent 系统中，Prompt 不只是用户写的那句话——它通常由系统自动拼接而成，包含 System Prompt + 工具列表（JSON Schema）+ 对话历史 + RAG 检索结果 + 用户当前输入。这就是为什么 Agent 框架中的"感知层"如此重要——它负责把这些异构信息组织成一个高效、紧凑的 prompt。</p>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="tokenization.html">Tokenization · BPE</a>
+<a href="context-window.html">Context Window · 上下文窗口</a>
+<a href="reasoning.html">CoT · ReAct · 推理范式</a>
+<a href="tool-use.html">Function Calling · 工具调用</a>
+</div>
+</div>
+</body>
+</html>
