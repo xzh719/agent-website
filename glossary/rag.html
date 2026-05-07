@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · RAG & 检索增强生成</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '·'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 04 ]</div>
+<h1>RAG · 检索增强生成</h1>
+<p class="subtitle">给大模型装上"外部大脑"——让它在回答前先查阅你的私有知识库。</p>
+
+<div class="term-section">
+<h2>RAG (Retrieval-Augmented Generation)</h2>
+<div class="cn-name">检索增强生成</div>
+<h3>白话解释</h3>
+<p>RAG 是解决大模型"知识截止日期"和"幻觉"问题的关键技术。它的思路非常直观：<strong>在让模型回答问题之前，先从外部知识库中检索相关信息，把这些信息作为参考注入 prompt，然后让模型基于这些信息作答。</strong></p>
+<p>这就好比你在考试时——不是只靠脑子里的记忆（模型训练时学到的知识），而是可以翻书查找资料（检索外部知识库），然后基于查到的内容作答。这样既保证了答案的时效性（书是最新版），也提高了准确性（有据可查）。</p>
+<h3>为什么需要 RAG？</h3>
+<ul>
+<li><strong>知识截止日期：</strong>ChatGPT 的训练数据截止到某个时间点，它不知道之后发生的事。RAG 让它能访问最新文档。</li>
+<li><strong>私有知识：</strong>你的公司内部文档、产品手册、客户数据——这些从未出现在训练数据中，但 RAG 能检索并引用。</li>
+<li><strong>减少幻觉：</strong>有参考资料时，模型更容易给出准确答案。RAG 把"凭记忆回答"变成了"带着参考资料回答"。</li>
+<li><strong>可溯源：</strong>RAG 可以告诉你答案来自哪个文档的哪一段——这在法律、医疗等合规场景至关重要。</li>
+</ul>
+<h3>RAG 四阶段 · 从文档到答案</h3>
+<div class="code-block"><span class="cm">// 阶段1: Chunk 分割</span>
+原始文档 → 按语义边界切分为段落 (256-512 tokens/chunk)
+重叠 10-20% 防止边界截断导致信息丢失
+
+<span class="cm">// 阶段2: 向量化入库</span>
+每个 chunk → Embedding 模型 → 向量
+向量 → 存入向量数据库 (Chroma / Milvus / Pinecone)
+
+<span class="cm">// 阶段3: 相似度检索</span>
+用户查询 → Embedding 模型 → 查询向量
+查询向量 → 向量数据库 ANN 搜索 → Top-K 最相似 chunks
+
+<span class="cm">// 阶段4: 上下文增强</span>
+检索到的 chunks + 原始问题 → 拼接为增强 prompt
+增强 prompt → LLM → 基于外部知识的准确回答</div>
+</div>
+
+<div class="term-section">
+<h2>Chunk 分割</h2>
+<div class="cn-name">Document Chunking</div>
+<h3>白话解释</h3>
+<p>Chunk 分割是 RAG 的第一步——把长文档切成小块。这看起来简单，实际上是 RAG 系统质量的关键瓶颈之一。切得太小：单个 chunk 信息不完整，模型无法理解上下文；切得太大：向量中包含太多混杂信息，检索精度下降。</p>
+<p>常见的分割策略：</p>
+<ul>
+<li><strong>固定长度分割：</strong>每 512 tokens 切一刀。最简单，但会在句子中间切断。</li>
+<li><strong>递归分割：</strong>先按段落分，段落太长再按句子分，句子还长再按词分。最常用。</li>
+<li><strong>语义分割：</strong>用 embedding 模型判断语义转换点，在"话题变化"处分割。精度最高但计算成本高。</li>
+<li><strong>重叠窗口：</strong>相邻 chunk 重叠 10-20%。比如 chunk1 包含 tokens 0-512，chunk2 包含 tokens 410-922。确保不会因为边界截断丢失关键信息。</li>
+</ul>
+<div class="insight">
+<strong>关键洞察：</strong>重叠窗口是"便宜但极其有效"的技巧。它的本质是用少量存储冗余换取检索鲁棒性——如果一条关键信息恰好落在 chunk 边界上，没有重叠就会丢失，有重叠则至少被一个 chunk 完整包含。多消耗 10-20% 的存储和索引成本，换来的却是显著的召回率提升。
+</div>
+</div>
+
+<div class="term-section">
+<h2>Rerank (重排序)</h2>
+<div class="cn-name">Re-ranking</div>
+<h3>白话解释</h3>
+<p>Rerank 是 RAG 流程中的一个可选的"精排"步骤。向量检索（ANN）速度快但精度有损——它可能返回 10 个结果，其中真正最相关的排在第 5 位而非第 1 位。Rerank 对 Top-K 个候选做一次更精细的相关性评分，重新排序，把最相关的结果排到最前面。</p>
+<p>为什么不在第一步就用精细评分？因为对全部 100 万个文档做精细评分太慢了。Rerank 的策略是"粗筛 + 精排"：先用快速的向量检索缩窄到 50-100 个候选，再对这些候选做精细评分，取 Top-5 注入 prompt。</p>
+<div class="code-block"><span class="cm">// 无 Rerank: 粗筛结果直接注入</span>
+向量检索 → 10 个结果 → 全部注入 prompt
+<span class="cm">// 问题: 可能有2-3个不太相关的结果稀释上下文</span>
+
+<span class="cm">// 有 Rerank: 粗筛 + 精排</span>
+向量检索 → 50 个候选 → Rerank 模型 → 取 Top-5 注入
+<span class="cm">// 优势: 上下文更紧凑、更相关，答案质量更高</span></div>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="embedding.html">Embedding · 向量嵌入</a>
+<a href="vector-search.html">Vector Search · 向量检索</a>
+<a href="context-window.html">Context Window · 上下文窗口</a>
+<a href="llm-basics.html">LLM 基础</a>
+</div>
+</div>
+</body>
+</html>
