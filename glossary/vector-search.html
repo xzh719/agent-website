@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · Vector Search & 向量检索</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '·'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 03 ]</div>
+<h1>Vector Search · 向量检索</h1>
+<p class="subtitle">在高维空间中"大海捞针"——如何从百万向量中毫秒级找到最相似的几条。</p>
+
+<div class="term-section">
+<h2>余弦相似度 (Cosine Similarity)</h2>
+<div class="cn-name">Cosine Similarity</div>
+<h3>白话解释</h3>
+<p>余弦相似度是衡量两个向量"方向有多接近"的数学公式。想象空间中两个箭头：如果它们指向完全相同的方向，相似度为 1；如果垂直，相似度为 0；如果反向，相似度为 -1。</p>
+<p>为什么在语义检索中用余弦相似度而非欧氏距离？因为在高维空间中，<strong>向量的长度（模长）常常受文本长度影响</strong>——一篇长文章自然产生模长更大的向量，但这不代表它语义更强。余弦相似度只看方向不看长度，因此能公平比较短查询和长文档。</p>
+<div class="code-block"><span class="cm">// 余弦相似度公式</span>
+cos(θ) = (A · B) / (|A| × |B|)
+
+<span class="cm">// 其中：</span>
+<span class="cm">// A·B = 点积 = a1*b1 + a2*b2 + ... + an*bn</span>
+<span class="cm">// |A| = A的模长 = sqrt(a1² + a2² + ... + an²)</span>
+
+<span class="cm">// JavaScript 实现</span>
+<span class="kw">function</span> cosineSimilarity(vecA, vecB) {
+  <span class="kw">let</span> dot = 0, magA = 0, magB = 0;
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i < vecA.length; i++) {
+    dot += vecA[i] * vecB[i];
+    magA += vecA[i] * vecA[i];
+    magB += vecB[i] * vecB[i];
+  }
+  <span class="kw">return</span> dot / (Math.sqrt(magA) * Math.sqrt(magB));
+  <span class="cm">// 返回值 [-1, 1]，1 = 完全相同方向</span>
+}</div>
+</div>
+
+<div class="term-section">
+<h2>L2 归一化 (L2 Normalization)</h2>
+<div class="cn-name">L2 Normalization / 单位向量化</div>
+<h3>白话解释</h3>
+<p>L2 归一化就是把一个向量缩放到长度为 1。具体做法：把向量的每个分量除以向量的模长。归一化后，所有向量都落在单位球面上，此时余弦相似度就等于两个向量的内积——因为分母 |A|×|B| = 1×1 = 1。</p>
+<p>这为什么有用？因为内积比余弦相似度计算更快（省去了两次开方运算），在需要做大规模检索时，这个优化可以显著提速。大多数 embedding 模型的输出默认就是 L2 归一化后的向量。</p>
+<div class="code-block"><span class="cm">// 原始向量 A = [3, 4]  → |A| = 5</span>
+<span class="cm">// 归一化后 A' = [3/5, 4/5] = [0.6, 0.8]  → |A'| = 1</span>
+
+<span class="cm">// 此时 cos(A,B) = A' · B'（直接内积即可）</span></div>
+</div>
+
+<div class="term-section">
+<h2>ANN (近似最近邻搜索)</h2>
+<div class="cn-name">Approximate Nearest Neighbor</div>
+<h3>白话解释</h3>
+<p>ANN 是向量检索的工程实现方案。理论上，要在 100 万个向量中找最相似的 Top-10，需要计算 100 万次余弦相似度——这在实时系统中不可接受。ANN 算法的核心思想是：<strong>牺牲一点点精度，换取数量级的速度提升</strong>。</p>
+<p>ANN 的常见实现包括：</p>
+<ul>
+<li><strong>HNSW</strong>（Hierarchical Navigable Small World）：构建多层图结构，每层是上一层子集，搜索时从最稀疏的顶层开始逐层下降。类似"先看地图概览找大致区域，再放大看街道细节"。</li>
+<li><strong>IVF</strong>（Inverted File）：先聚类，把向量空间分成若干区域，搜索时只在与查询最近的那几个区域内查找。</li>
+<li><strong>PQ</strong>（Product Quantization）：把高维向量切成多段，每段单独量化，用查表替代浮点运算，大幅压缩内存和加速计算。</li>
+</ul>
+<div class="insight">
+<strong>关键洞察：</strong>ANN 的"近似"是有理论保证的——通常能在 Top-10 结果中找回 95%+ 的真实最近邻，同时速度比暴力搜索快 100-1000 倍。在 RAG 场景中，召回率 95% 和 100% 对最终答案质量的影响微乎其微，但延迟从 500ms 降到 5ms 对用户体验是质的飞跃。
+</div>
+</div>
+
+<div class="term-section">
+<h2>向量数据库 (Vector Database)</h2>
+<div class="cn-name">Vector DB · Chroma / Milvus / Pinecone</div>
+<h3>白话解释</h3>
+<p>向量数据库是专门存储和检索高维向量的数据库。传统数据库擅长"精确匹配"（找到 id=42 的记录），向量数据库擅长"相似性搜索"（找到和给定向量最接近的 10 条记录）。</p>
+<p>主流向量数据库对比：</p>
+<div class="code-block"><span class="kw">数据库</span>       <span class="kw">类型</span>      <span class="kw">特点</span>
+Chroma      开源·轻量   Python 原生，适合原型和中小规模
+Milvus      开源·分布式  十亿级向量，云原生，性能最强
+Pinecone    商业 SaaS   零运维，按量付费，开箱即用
+Weaviate    开源·GraphQL 自带向量化模块，支持混合搜索
+Qdrant      开源·Rust    高性能，过滤能力突出
+FAISS       Meta 开源    纯算法库，不是数据库，速度最快</div>
+<h3>它和传统数据库有什么区别？</h3>
+<p>传统数据库的索引是 B-Tree：数据按大小排序，适合范围查询。向量数据库的索引是图结构或聚类结构：数据按空间位置组织，适合最近邻查询。你不能用 MySQL 高效地做"找和这个向量最接近的 10 个"——这不是它设计的目标。</p>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="embedding.html">Embedding · 向量嵌入</a>
+<a href="rag.html">RAG · 检索增强生成</a>
+<a href="llm-basics.html">LLM 基础</a>
+</div>
+</div>
+</body>
+</html>
