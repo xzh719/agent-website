@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · CoT · ReAct · 推理范式</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '\00b7'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.term-section ol { color: var(--text2); font-size:14px; padding-left:24px; margin:12px 0; }
+.term-section ol li { padding: 4px 0; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 07 ]</div>
+<h1>Reasoning · 推理范式</h1>
+<p class="subtitle">从"一问一答"到"深思熟虑"——让大模型像人类一样分步骤、多路径地思考问题。</p>
+
+<div class="term-section">
+<h2>CoT (Chain of Thought)</h2>
+<div class="cn-name">思维链</div>
+<h3>白话解释</h3>
+<p>思维链是一种提示技术：<strong>让模型在给出最终答案之前，先写下它的推理过程。</strong>就像数学老师要求你"写出解题步骤"而不是只写答案——把思考过程显式化，每一步都建立在前面步骤的基础上。</p>
+<p>这句话听起来太简单了？但它确实有效，而且效果显著。在复杂推理任务上，加上一句"Let us think step by step"就能让准确率大幅提升。这不是因为模型变聪明了——</p>
+<div class="insight">
+<strong>关键洞察：</strong>CoT 有效的根本原因是利用了自回归模型的特性——每个 token 的生成概率依赖于前面所有 token。当你让模型先写出推理步骤，这些步骤变成了后续 token 的"条件"，约束了概率分布，大幅降低了模型"跳到一个错误结论"的概率。CoT 不是让模型思考，而是用文本引导概率流向正确的方向。
+</div>
+<h3>CoT vs 直接回答</h3>
+<div class="code-block"><span class="cm">// 直接回答 (Zero-shot)</span>
+问: 房间有 3 人，每人 4 个苹果，每人吃 1 个，还剩多少？
+答: 9 个  <span class="cm">← 可能出错</span>
+
+<span class="cm">// CoT 推理</span>
+问: 房间有 3 人，每人 4 个苹果，每人吃 1 个，还剩多少？
+答: <span class="kw">[步骤1]</span> 初始苹果 = 3 x 4 = 12 个
+    <span class="kw">[步骤2]</span> 吃掉 = 3 x 1 = 3 个
+    <span class="kw">[步骤3]</span> 剩余 = 12 - 3 = 9 个
+    答案: 9 个  <span class="cm">← 推理可审计、可纠错</span></div>
+</div>
+
+<div class="term-section">
+<h2>ToT (Tree of Thoughts)</h2>
+<div class="cn-name">思维树</div>
+<h3>白话解释</h3>
+<p>思维树是思维链的升级版。CoT 走一条路，ToT 同时探索多条路。它把推理过程组织成一棵树：每个节点是一个"思考步骤"，从每个节点分支到多个可能的下一步，用模型评估每条路径的可行性，剪掉不好的分支，深入有希望的分支。</p>
+<p>这本质上把推理变成了<strong>启发式搜索</strong>问题——就像下棋：在每一步考虑多种走法，评估优劣，选择最优。</p>
+<div class="code-block"><span class="cm">// ToT 推理 (24 点游戏: 用 4, 6, 8, 12 算出 24)</span>
+
+<span class="kw">第1层</span> (初始: 4, 6, 8, 12)
+  ├── 分支A: 12 + 8 = 20, 剩余 {4, 6, 20}
+  │   ├── 20 + 4 = 24 (成功!)
+  │   └── 20 - 6 = 14 ... (剪枝)
+  ├── 分支B: 12 - 4 = 8, 剩余 {6, 8, 8}
+  │   └── ... (剪枝)
+  └── 分支C: 6 x 4 = 24 (成功!)
+
+<span class="cm">// BFS 广度搜索 + LLM 评分器做剪枝</span></div>
+<h3>ToT vs CoT：选哪个？</h3>
+<ul>
+<li><strong>CoT：</strong>线性推理路径（数学题、逻辑推理）→ 一条路走到底</li>
+<li><strong>ToT：</strong>分支多、需探索（编程方案、创意生成、策略规划）→ 多路并进</li>
+</ul>
+</div>
+
+<div class="term-section">
+<h2>ReAct (Reasoning + Acting)</h2>
+<div class="cn-name">推理-行动循环</div>
+<h3>白话解释</h3>
+<p>ReAct 是 Agent 的核心运行范式。它把一个复杂任务分解为多个"思考 → 行动 → 观察"的循环：</p>
+<ol>
+<li><strong style="color:var(--accent)">Reason（推理）：</strong>分析当前状态，决定下一步做什么</li>
+<li><strong style="color:var(--accent)">Act（行动）：</strong>执行决定的动作——调用工具、搜索、计算等</li>
+<li><strong style="color:var(--accent)">Observe（观察）：</strong>接收行动的结果，判断任务是否完成</li>
+<li>未完成 → 带着新观察回到第 1 步；完成 → 结束</li>
+</ol>
+<p>ReAct 让 Agent 不再是"一次回答"，而是在与环境持续交互中逐步逼近目标——就像 PDCA 循环的 AI 版本。</p>
+<div class="code-block"><span class="cm">// ReAct 循环伪代码</span>
+<span class="kw">async function</span> reactLoop(task, tools, maxSteps = 10) {
+  <span class="kw">let</span> history = [{ role: "user", content: task }];
+  <span class="kw">for</span> (<span class="kw">let</span> step = 0; step &lt; maxSteps; step++) {
+    <span class="cm">// REASON: LLM 分析并决定</span>
+    <span class="kw">const</span> response = <span class="kw">await</span> llm.chat(history, tools);
+
+    <span class="cm">// 如果 LLM 输出最终答案，结束</span>
+    <span class="kw">if</span> (response.finish_reason === "stop") <span class="kw">break</span>;
+
+    <span class="cm">// ACT: 执行工具调用</span>
+    <span class="kw">const</span> result = <span class="kw">await</span> executeTool(response.tool_call);
+
+    <span class="cm">// OBSERVE: 将结果反馈给 LLM</span>
+    history.push(response.message);
+    history.push({ role: "tool", content: result });
+  }
+  <span class="kw">return</span> history;
+}</div>
+</div>
+
+<div class="term-section">
+<h2>BFS 广度搜索 & 启发式搜索</h2>
+<div class="cn-name">BFS / Heuristic Search</div>
+<h3>白话解释</h3>
+<p>BFS（广度优先搜索）是图搜索算法：从起点开始，先探索所有"一步可达"的节点，再探索"两步可达"的节点，层层扩展。在 ToT 中，BFS 用于同时评估多个思维分支。</p>
+<p>启发式搜索更进一步：用"启发函数"估算每个节点离目标有多远，优先探索最有希望的节点。在 ToT 中，LLM 自身充当了启发函数——给每个思考步骤打分，决定哪些分支值得深入。</p>
+<div class="insight">
+<strong>关键洞察：</strong>ToT 把 LLM 从"生成器"变成"搜索算法中的评估器"。这是 Agent 架构 Brain 层的精髓——不是让 LLM 一次生成最终答案，而是让它参与结构化搜索过程，在每个决策点做判断。模型的推理能力被反复利用，每次只解决小问题（"这两个思路哪个更好？"），而非一次性解决整个大问题。
+</div>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="llm-basics.html">LLM 基础 · 自回归模型</a>
+<a href="tool-use.html">Function Calling · 工具调用</a>
+<a href="context-window.html">Context Window · 上下文窗口</a>
+</div>
+</div>
+</body>
+</html>
