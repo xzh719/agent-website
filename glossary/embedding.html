@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · Embedding & 向量嵌入</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.back-link span { font-size: 14px; }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '·'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 02 ]</div>
+<h1>Embedding · 向量嵌入</h1>
+<p class="subtitle">将语义"翻译"为数学——让计算机真正"理解"文字的含义，而非仅仅匹配关键词。</p>
+
+<div class="term-section">
+<h2>向量嵌入 (Embedding)</h2>
+<div class="cn-name">Vector Embedding / 嵌入向量</div>
+<h3>白话解释</h3>
+<p>向量嵌入是大模型理解语义的<strong>核心技术</strong>。简单说：把一段文本（一个词、一句话、一篇文章）转换成一串数字——通常是一个长度固定（如 1536）的浮点数数组。这段数字就是这段文本在高维空间中的"坐标"。</p>
+<p>打个比方：想象一张巨大的地图，每段文字都在这张地图上有一个位置。意思相近的文字（如"猫"和"猫咪"）位置很近，意思无关的文字（如"猫"和"汽车"）位置很远。这张地图不是人画的——它是由神经网络在海量文本上训练出来的。训练的目标很简单：让经常出现在相似上下文中的词，拥有相似的坐标。</p>
+<div class="code-block"><span class="cm">// 一段文字 → 一个高维向量</span>
+文本: "Agent 是一个智能系统"
+↓ embed()
+向量: [0.023, -0.451, 0.782, ..., 0.331]  <span class="cm">// 共 1536 个 float32 数字</span>
+
+<span class="cm">// 这个向量编码了文本的语义</span>
+<span class="cm">// 你可以用它来：搜索相似内容、分类、聚类、作为 LLM 输入</span></div>
+<h3>为什么不是关键词匹配？</h3>
+<p>传统的搜索用关键词匹配："咖啡店"只能搜到含"咖啡店"这三个字的文档。但向量嵌入搜索可以搜到"咖啡馆"、"coffee shop"、"星巴克"——因为它们在高维空间中距离很近。向量编码的是<strong>语义</strong>，而非<strong>字面</strong>。这就是为什么基于 embedding 的搜索远比关键词搜索智能。</p>
+</div>
+
+<div class="term-section">
+<h2>Embedding 模型</h2>
+<div class="cn-name">嵌入模型</div>
+<h3>白话解释</h3>
+<p>Embedding 模型是专门用来把文本变成向量的模型。它和 ChatGPT 这种生成式模型不同——它不做对话，不写文章，唯一的任务就是：<strong>输入文本 → 输出向量</strong>。因为任务单一，它通常比生成式模型更小、更快、更便宜。</p>
+<h3>它是怎么训练出来的？</h3>
+<p>训练 embedding 模型不需要人工标注。核心思想叫<strong>对比学习</strong>（Contrastive Learning）：从互联网上抓取海量文本对——同一篇文章的两个段落、同一个问题的两种问法、同一张图片的文字描述——告诉模型"这两个应该近"。同时随机采样不相关的文本对，告诉模型"这两个应该远"。经过数亿次这样的训练，模型学会了把语义映射到空间位置。</p>
+<div class="insight">
+<strong>关键洞察：</strong>Embedding 模型的本质是一个"语义压缩机"。它把任意长度的文本压缩成一个固定长度的向量，压缩的过程中保留了语义信息，丢弃了语法细节、修饰词等。一个好的 embedding 模型，压缩后的向量中，"猫"和"狗"的距离应该比"猫"和"飞机"近，"king - man + woman"应该约等于"queen"——这就是著名的词向量代数性质。
+</div>
+<h3>主流 Embedding 模型对比</h3>
+<div class="code-block"><span class="kw">模型</span>                    <span class="kw">维度</span>   <span class="kw">特点</span>
+text-embedding-3-small   512    性价比最高，大规模检索首选
+text-embedding-3-large   3072   精度最高，适合高精度匹配
+Cohere Embed v3          1024   多语言优秀，中文表现好
+BGE-M3 (BAAI 开源)       1024   本地部署，无需 API，完全免费
+Jina Embeddings v2       768    支持 8K 长文本，适合长文档</div>
+</div>
+
+<div class="term-section">
+<h2>浮点数向量 (Float32 Vector)</h2>
+<div class="cn-name">Float32Array · 高维向量</div>
+<h3>白话解释</h3>
+<p>当我们说"一个 1536 维的向量"，实际上就是一个包含 1536 个浮点数的数组，每个数字是 32 位浮点数（float32）。这 1536 个数字共同描述了文本在高维空间中的位置。</p>
+<p>为什么要那么多维度？因为语义太复杂了。3 个维度只能描述"上下、左右、前后"，但语义有无数个层面：情感色彩、正式程度、主题类别、实体关系、时序信息……每增加一个维度，模型就多一个"角度"来区分文本。实践中发现 512-3072 维是一个甜蜜点——太少则区分度不够，太多则计算成本高且容易过拟合。</p>
+<h3>存储成本</h3>
+<div class="code-block"><span class="cm">// 一条 1536 维 float32 向量</span>
+1536 × 4 bytes = 6,144 bytes ≈ 6 KB
+
+<span class="cm">// 100 万条向量</span>
+1,000,000 × 6 KB = 6 GB
+
+<span class="cm">// 这就是为什么向量数据库需要专门的存储和索引策略</span></div>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="tokenization.html">Tokenization · BPE</a>
+<a href="vector-search.html">Vector Search · 向量检索</a>
+<a href="rag.html">RAG · 检索增强生成</a>
+<a href="llm-basics.html">LLM 基础</a>
+</div>
+</div>
+</body>
+</html>
