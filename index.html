@@ -1,0 +1,3245 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Architecture | The Logic Flow v4.6</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,200;0,9..40,400;0,9..40,600&family=JetBrains+Mono:wght@100;300;400;600&display=swap');
+
+        :root {
+            --bg-base: #F9F6F0;
+            --bg-surface: #F0ECE4;
+            --accent: #5B7A9A;
+            --text-primary: #1C1C1C;
+            --text-secondary: #6E6E6E;
+            --text-muted: #A0A0A0;
+            --border-subtle: rgba(0,0,0,0.06);
+            --border-default: rgba(0,0,0,0.12);
+            --radius-sm: 6px;
+            --radius-md: 12px;
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 32px;
+            --space-lg: 64px;
+            --space-xl: 96px;
+            --transition-smooth: 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+
+        body {
+            margin: 0; padding: 0; background-color: var(--bg-base);
+            font-family: 'DM Sans', sans-serif; overflow: hidden;
+            position: relative; color: var(--text-primary);
+        }
+
+        /* 1. 鏍稿績瑙嗚绯荤粺 */
+        #ambient-light {
+            position: fixed; top: 0; left: 0; width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(91,122,154,0.08) 0%, rgba(91,122,154,0.03) 35%, transparent 70%);
+            border-radius: 50%; filter: blur(60px); pointer-events: none; z-index: 1; transform: translate(-50%, -50%);
+            animation: ambientBreath 6s ease-in-out infinite;
+        }
+        @keyframes ambientBreath {
+            0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.9); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+        }
+
+
+        .corner-mark { position: absolute; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; z-index: 5; opacity: 0.5; }
+        .top-left { top: 40px; left: 50px; }
+        .bottom-right { bottom: 40px; right: 50px; display: flex; align-items: center; gap: 10px;}
+        .status-dot { width: 4px; height: 4px; background: var(--accent); border-radius: 50%; box-shadow: 0 0 10px var(--accent); animation: statusPulse 2s ease-in-out infinite; }
+        @keyframes statusPulse { 0%, 100% { box-shadow: 0 0 6px var(--accent); } 50% { box-shadow: 0 0 16px var(--accent), 0 0 30px rgba(91,122,154,0.3); } }
+
+        /* 2. 涓婚〉鍐呭 */
+        #main-content {
+            position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
+            transition: opacity 0.6s ease;
+            animation: pageEnter 1s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        }
+        @keyframes pageEnter {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .manifesto { text-align: center; margin-bottom: 96px; max-width: 540px; }
+        .manifesto-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 4px; margin-bottom: 24px; opacity: 0.6; }
+        .manifesto-title { font-size: 40px; font-weight: 200; letter-spacing: -0.02em; margin: 0 0 20px 0; color: var(--text-primary); }
+        .manifesto-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.9; margin: 0; font-weight: 400; }
+
+        .pipeline-container { width: 72%; max-width: 780px; height: 100px; display: flex; justify-content: space-between; align-items: center; position: relative; }
+        .main-line { position: absolute; top: 50%; width: 100%; height: 1px; background: linear-gradient(90deg, transparent 0%, rgba(91,122,154,0.1) 15%, rgba(91,122,154,0.18) 50%, rgba(91,122,154,0.1) 85%, transparent 100%); }
+        .main-line::after { content: ''; position: absolute; top: -3px; left: 10%; width: 30%; height: 7px; background: radial-gradient(ellipse, rgba(91,122,154,0.06) 0%, transparent 70%); animation: lineShimmer 4s ease-in-out infinite; }
+        @keyframes lineShimmer { 0%, 100% { left: 10%; opacity: 0.3; } 50% { left: 60%; opacity: 1; } }
+        
+        .node { cursor: pointer; z-index: 11; position: relative; display: flex; flex-direction: column; align-items: center; }
+        .shape { width: 14px; height: 14px; border: 1px solid rgba(0,0,0,0.06); background: var(--bg-base); transition: all 0.4s cubic-bezier(0.22, 0.61, 0.36, 1); animation: nodeIdle 4s ease-in-out infinite; }
+        .node:nth-child(2) .shape { animation-delay: 0s; }
+        .node:nth-child(3) .shape { animation-delay: 0.6s; }
+        .node:nth-child(4) .shape { animation-delay: 1.2s; }
+        .node:nth-child(5) .shape { animation-delay: 1.8s; }
+        @keyframes nodeIdle { 0%, 100% { box-shadow: 0 0 0 rgba(91,122,154,0); } 50% { box-shadow: 0 0 8px rgba(91,122,154,0.18); } }
+        .node:hover .shape { background: var(--accent); border-color: var(--accent); transform: scale(1.5); box-shadow: 0 0 32px rgba(91,122,154,0.35), 0 0 60px rgba(91,122,154,0.12); animation: none; }
+        .node:hover .shape::after { content: ''; position: absolute; top: -4px; left: -4px; right: -4px; bottom: -4px; border-radius: inherit; border: 1px solid rgba(91,122,154,0.2); animation: nodeRing 1s ease-out infinite; }
+        @keyframes nodeRing { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+
+        .text-content {
+            position: absolute; top: 44px; text-align: center; opacity: 0;
+            transform: translateY(12px); transition: all 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+            pointer-events: none; z-index: 100; width: 220px;
+            padding: 16px 0;
+        }
+        .node:hover .text-content { opacity: 1; transform: translateY(0); }
+        .title { color: var(--text-primary); font-weight: 600; letter-spacing: 1.5px; font-size: 13px; margin-bottom: 6px; }
+        .code-meta { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-bottom: 8px; opacity: 0.5; }
+        .desc { color: var(--text-secondary); font-size: 12px; line-height: 1.7; font-weight: 400; }
+
+        .builder-entry {
+            margin-top: 80px; display: flex; align-items: center; gap: 8px;
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--text-muted); letter-spacing: 2px; cursor: pointer;
+            transition: all 0.35s ease; user-select: none; opacity: 0.6;
+        }
+        .builder-entry:hover { color: var(--accent); opacity: 1; }
+        .builder-entry-icon { font-size: 13px; transition: transform 0.35s ease; }
+        .builder-entry:hover .builder-entry-icon { transform: rotate(90deg); }
+        .builder-entry-arrow { transition: all 0.35s ease; opacity: 0; transform: translateX(-4px); }
+        .builder-entry:hover .builder-entry-arrow { opacity: 1; transform: translateX(0); }
+
+        /* 3. 璇︽儏椤碉細淇婊氬姩閿佸畾 */
+        #detail-page {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: #F9F6F0; z-index: 10000; display: none; opacity: 0;
+            overflow-y: auto; overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+        #detail-page::-webkit-scrollbar { width: 3px; }
+        #detail-page::-webkit-scrollbar-track { background: transparent; }
+        #detail-page::-webkit-scrollbar-thumb { background: rgba(91,122,154,0.1); border-radius: 2px; }
+        #detail-page::-webkit-scrollbar-thumb:hover { background: rgba(91,122,154,0.25); }
+        #detail-page { scrollbar-width: thin; scrollbar-color: rgba(91,122,154,0.1) transparent; }
+
+        .back-btn {
+            position: fixed; top: 40px; left: 50px; z-index: 10001;
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: #999; letter-spacing: 2px; background: none; border: none;
+            padding: 0; transition: color 0.3s ease;
+        }
+        .back-btn:hover { color: var(--accent); }
+        .back-btn-arrow { display: inline-block; transition: transform 0.3s ease; }
+        .back-btn:hover .back-btn-arrow { transform: translateX(-4px); }
+
+        .scroll-section { min-height: auto; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; padding: 120px 0 100px; }
+
+        .terminal-box {
+            width: 58%; max-width: 680px; font-family: 'JetBrains Mono', monospace;
+            font-size: 14px; line-height: 2.5; color: var(--text-primary);
+            opacity: 0.9;
+        }
+        .scroll-hint {
+            margin-top: 120px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+            font-size: 10px; letter-spacing: 4px; animation: breathe 2.5s infinite alternate;
+            user-select: none; opacity: 0.5;
+        }
+
+        .parallax-content { text-align: center; opacity: 0; transform: translateY(40px); transition: 1s cubic-bezier(0.22, 0.61, 0.36, 1); }
+        .section-active .parallax-content { opacity: 1; transform: translateY(0); }
+        .parallax-title { font-size: 42px; font-weight: 200; letter-spacing: -0.01em; margin-bottom: 24px; color: var(--text-primary); }
+        .parallax-desc { font-size: 15px; color: var(--text-secondary); max-width: 520px; line-height: 1.9; margin: 0 auto; }
+
+        #thinking-canvas { position: absolute; width: 100%; height: 100%; z-index: -1; opacity: 0.3; pointer-events: none; }
+
+        /* ReAct 闂幆瑙嗚 */
+        .react-loop-container {
+            width: 280px; height: 280px; position: relative; margin-bottom: 48px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .react-circle {
+            position: absolute; width: 100%; height: 100%;
+            border: 1px solid rgba(91,122,154,0.12); border-radius: 50%;
+            animation: rotate 25s linear infinite;
+        }
+        .react-label {
+            font-family: 'JetBrains Mono', monospace; color: var(--accent);
+            font-size: 13px; letter-spacing: 5px; opacity: 0.7;
+        }
+        .section-subtitle {
+            font-family: 'JetBrains Mono', monospace; color: var(--accent);
+            font-size: 10px; letter-spacing: 2px; margin-bottom: 28px; opacity: 0.5;
+        }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* 杞満鍏夋檿 */
+        #quantum-glow {
+            position: fixed; width: 15px; height: 15px; background: var(--accent);
+            border-radius: 50%; z-index: 99999; transform: translate(-50%, -50%) scale(0);
+            opacity: 0; transition: 1.2s cubic-bezier(0.22, 0.61, 0.36, 1);
+            box-shadow: 0 0 40px var(--accent);
+        }
+        .glow-active { opacity: 0.9 !important; transform: translate(-50%, -50%) scale(160) !important; background: radial-gradient(circle, transparent 0%, #F9F6F0 80%) !important; }
+
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes breathe { 0% { opacity: 0.2; } 100% { opacity: 0.6; } }
+
+        /* 4. 娣卞害瑙ｆ瀽鍐呭鍖?*/
+        .deep-section {
+            min-height: auto; width: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; position: relative;
+            padding: 100px 0 90px;
+        }
+        .deep-container {
+            width: 64%; max-width: 760px; text-align: left;
+            opacity: 0; transform: translateY(30px);
+            transition: 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        .section-active .deep-container { opacity: 1; transform: translateY(0); }
+        .deep-section-label {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 4px; margin-bottom: 16px; opacity: 0.5;
+        }
+        .deep-section-title {
+            font-size: 32px; font-weight: 200; letter-spacing: -0.01em;
+            color: var(--text-primary); margin: 0 0 24px 0;
+        }
+        .deep-subtitle {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: var(--text-secondary); margin-bottom: 40px; line-height: 1.8;
+            border-left: 1px solid var(--accent); padding-left: 16px;
+        }
+        .concept-block { margin-bottom: 30px; }
+        .concept-block h4 {
+            font-size: 14px; font-weight: 600; color: var(--text-primary);
+            letter-spacing: -0.01em; margin: 0 0 12px 0;
+        }
+        .concept-divider {
+            width: 40px; height: 1px; background: var(--border-subtle);
+            margin: 34px 0 30px;
+        }
+        .concept-block p {
+            font-size: 14px; color: var(--text-secondary); line-height: 1.85; margin: 0;
+        }
+        .code-snippet {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: #444; background: rgba(0,0,0,0.015);
+            border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
+            padding: 24px 28px; margin: 16px 0; line-height: 2;
+            overflow-x: auto; white-space: pre;
+            position: relative; transition: border-color 0.35s ease, box-shadow 0.35s ease, background 0.35s ease;
+        }
+        .code-snippet::after {
+            content: ''; position: absolute; left: 0; width: 100%; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }
+        .code-snippet:hover {
+            border-color: rgba(91,122,154,0.2);
+            background: rgba(91,122,154,0.02);
+            box-shadow: 0 0 24px rgba(91,122,154,0.04);
+        }
+        .code-snippet:hover::after {
+            opacity: 0.25;
+            animation: codeScan 2.5s ease-in-out infinite;
+        }
+        @keyframes codeScan {
+            0% { top: 0; }
+            100% { top: calc(100% - 1px); }
+        }
+
+        /* Glitch Grid Canvas */
+        #code-rain {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; opacity: 1;
+        }
+        #code-rain-detail {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1; opacity: 0.65;
+        }
+        .code-rain-mini {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0; opacity: 0.55;
+        }
+
+        /* Code decoration at section bottoms */
+        .code-decoration {
+            width: 100%; display: flex; justify-content: center; padding: 0 0 40px;
+            pointer-events: none; user-select: none;
+        }
+        .code-decoration-line {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px;
+            color: rgba(0,0,0,0.03); letter-spacing: 1px;
+            white-space: nowrap; overflow: hidden;
+            transition: color 0.8s ease;
+        }
+        .code-decoration-line:hover { color: rgba(91,122,154,0.15); }
+        .highlight-term {
+            color: var(--accent); font-weight: 400;
+        }
+        .glossary-link {
+            color: var(--accent); font-weight: 400; text-decoration: none;
+            border-bottom: 1px dashed rgba(91,122,154,0.25);
+            transition: border-color 0.3s ease, color 0.3s ease;
+        }
+        .glossary-link:hover {
+            border-bottom-color: var(--accent);
+            color: var(--accent);
+        }
+        .key-insight {
+            background: rgba(91,122,154,0.03);
+            border: 1px solid rgba(91,122,154,0.08);
+            border-radius: var(--radius-sm);
+            padding: 22px 26px; margin: 32px 0;
+            font-size: 13px; color: var(--text-secondary); line-height: 1.85;
+            position: relative;
+        }
+        .key-insight::before {
+            content: 'KEY INSIGHT';
+            font-family: 'JetBrains Mono', monospace; font-size: 8px;
+            color: var(--accent); letter-spacing: 3px; opacity: 0.45;
+            display: block; margin-bottom: 12px;
+        }
+
+        /* 5. Interactive Framework Cards */
+        .paradigm-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 20px; margin-top: 48px; max-width: 820px;
+        }
+        .framework-card {
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            background: transparent;
+            padding: 28px 26px; cursor: pointer;
+            transition: border-color 0.35s ease, background 0.35s ease, transform 0.35s ease;
+            position: relative; overflow: hidden;
+        }
+        .framework-card:hover {
+            border-color: var(--border-default);
+            background: rgba(0,0,0,0.02);
+            transform: translateY(-2px);
+        }
+        .framework-card.active {
+            border-color: var(--accent);
+            background: rgba(91,122,154,0.04);
+        }
+        .framework-card h3 {
+            font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400;
+            color: var(--accent); letter-spacing: 1px; margin: 0 0 6px 0;
+        }
+        .framework-card .card-subtitle {
+            font-size: 11px; color: var(--text-muted); margin: 0 0 14px 0;
+        }
+        .framework-innovations {
+            max-height: 0; overflow: hidden;
+            transition: max-height 0.5s cubic-bezier(0.22, 0.61, 0.36, 1), opacity 0.35s ease;
+            opacity: 0;
+        }
+        .framework-card.active .framework-innovations {
+            max-height: 1600px; opacity: 1;
+        }
+        .innovation-item {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 10px 0; border-top: 1px solid var(--border-subtle);
+            font-size: 12px; color: var(--text-secondary); line-height: 1.7;
+        }
+        .innovation-item:first-child { border-top: none; }
+        .innovation-tag {
+            flex-shrink: 0; font-family: 'JetBrains Mono', monospace;
+            font-size: 9px; color: var(--accent); background: rgba(91,122,154,0.08);
+            padding: 2px 8px; border-radius: 3px; letter-spacing: 1px;
+            margin-top: 2px;
+        }
+        .card-expand-hint {
+            text-align: center; font-family: 'JetBrains Mono', monospace;
+            font-size: 9px; color: #B0B0B0; margin-top: 10px;
+            transition: opacity 0.3s ease;
+        }
+        .framework-card.active .card-expand-hint { opacity: 0.3; }
+
+        /* 6. Flowchart Section — Expanded */
+        .flowchart-section {
+            min-height: auto; width: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; position: relative;
+            padding: 90px 0 80px;
+        }
+        .flowchart-container {
+            width: 92%; max-width: 1100px;
+            opacity: 0; transform: translateY(30px);
+            transition: 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        .section-active .flowchart-container { opacity: 1; transform: translateY(0); }
+        .flowchart-title {
+            font-size: 32px; font-weight: 200; letter-spacing: -0.01em;
+            color: var(--text-primary); text-align: center; margin-bottom: 16px;
+        }
+        .flowchart-subtitle {
+            text-align: center; font-size: 13px; color: var(--text-muted);
+            line-height: 1.8; max-width: 640px; margin: 0 auto 36px;
+        }
+        .framework-selector {
+            display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+            margin-bottom: 56px;
+        }
+        .fw-btn {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: var(--text-muted); background: transparent;
+            border: 1px solid var(--border-subtle); border-radius: 24px;
+            padding: 9px 22px; cursor: pointer; letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .fw-btn:hover { color: var(--accent); border-color: var(--border-default); }
+        .fw-btn.selected {
+            color: var(--accent); border-color: var(--accent);
+            background: rgba(91,122,154,0.05);
+        }
+
+        /* === Expanded Base Pipeline === */
+        .base-pipeline-expanded {
+            display: flex; align-items: stretch; justify-content: center;
+            gap: 0; position: relative; margin-bottom: 8px;
+        }
+        .bp-node-wrap {
+            display: flex; flex-direction: column; align-items: center;
+            width: 220px; position: relative;
+        }
+        .bp-shape-wrap {
+            position: relative; z-index: 2;
+            width: 48px; height: 48px; display: flex; align-items: center;
+            justify-content: center; margin-bottom: 14px;
+        }
+        .bp-shape {
+            width: 48px; height: 48px; border: 1px solid var(--border-default);
+            background: transparent; display: flex; align-items: center;
+            justify-content: center; transition: all 0.4s ease;
+        }
+        .bp-shape.circle { border-radius: 50%; border-color: rgba(91,122,154,0.3); }
+        .bp-shape.diamond { transform: rotate(45deg); width: 34px; height: 34px; border-color: rgba(180,130,255,0.3); }
+        .bp-shape.diamond .bp-icon { transform: rotate(-45deg); }
+        .bp-shape.square { border-color: rgba(255,180,80,0.3); }
+        .bp-shape.triangle {
+            width: 0; height: 0; background: none; border: none;
+            border-left: 22px solid rgba(80,220,140,0.3);
+            border-top: 13px solid transparent; border-bottom: 13px solid transparent;
+        }
+        .bp-icon {
+            font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+        }
+        .bp-shape.circle .bp-icon { color: #5B7A9A; }
+        .bp-shape.diamond .bp-icon { color: #B482FF; }
+        .bp-shape.square .bp-icon { color: #FFB450; }
+        .bp-shape.triangle .bp-icon { color: #50DC8C; }
+        .bp-info {
+            text-align: center; padding: 0 8px;
+        }
+        .bp-label-main {
+            font-size: 11px; font-weight: 600; letter-spacing: 2px;
+            color: var(--text-primary); margin-bottom: 4px;
+        }
+        .bp-label-cn {
+            font-size: 10px; color: var(--text-muted); margin-bottom: 10px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .bp-desc {
+            font-size: 10px; color: #888; line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .bp-tech-stack {
+            display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
+        }
+        .bp-tech-tag {
+            font-family: 'JetBrains Mono', monospace; font-size: 8px;
+            color: #888; background: rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 3px; padding: 2px 7px;
+        }
+
+        /* Arrows between pipeline nodes */
+        .bp-arrow-col {
+            display: flex; align-items: center; padding-top: 16px;
+            width: 40px; justify-content: center;
+        }
+        .bp-arrow {
+            font-size: 20px; color: var(--border-subtle);
+            transition: color 0.3s ease;
+        }
+        .bp-arrow-flow {
+            position: relative;
+        }
+        .bp-arrow-dot {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            width: 3px; height: 3px; background: var(--accent);
+            border-radius: 50%; opacity: 0; animation: arrowPulse 2s ease-in-out infinite;
+        }
+        @keyframes arrowPulse {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.6; }
+        }
+
+        /* === Addition Area === */
+        .addition-area {
+            display: flex; justify-content: center; gap: 0;
+            margin-top: 32px; position: relative;
+        }
+        .addition-col {
+            width: 220px; display: flex; flex-direction: column;
+            gap: 8px; align-items: stretch; padding: 0 4px;
+        }
+        .addition-card {
+            background: transparent;
+            border: 1px solid rgba(91,122,154,0.08);
+            border-radius: 6px; padding: 14px 16px;
+            font-size: 10px; color: var(--text-secondary);
+            line-height: 1.7; cursor: default;
+            transition: all 0.35s ease;
+            animation: fadeInUp 0.45s ease both;
+            position: relative;
+        }
+        .addition-card:hover {
+            background: rgba(91,122,154,0.04); border-color: rgba(91,122,154,0.2);
+            transform: translateY(-1px);
+        }
+        .addition-card .add-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: var(--accent); font-weight: 600; margin-bottom: 4px;
+            letter-spacing: 0.5px;
+        }
+        .addition-card .add-desc {
+            font-size: 10px; color: #999; line-height: 1.6;
+            margin-bottom: 8px;
+        }
+        .addition-card .add-code {
+            padding: 6px 8px; background: rgba(0,0,0,0.06);
+            border-radius: 3px; font-family: 'JetBrains Mono', monospace;
+            font-size: 8.5px; color: #777; white-space: pre;
+            overflow-x: auto; line-height: 1.5;
+            border-left: 1px solid rgba(91,122,154,0.2);
+        }
+        .addition-col-spacer {
+            width: 40px; flex-shrink: 0;
+        }
+
+        /* === Framework Summary Panel === */
+        .fw-summary {
+            margin-top: 48px; padding: 28px 32px;
+            background: rgba(0,0,0,0.02);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            transition: all 0.4s ease;
+            display: none;
+        }
+        .fw-summary.visible { display: block; }
+        .fw-summary-title {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            color: var(--accent); letter-spacing: 2px; margin-bottom: 16px;
+        }
+        .fw-summary-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        .fw-summary-item {
+            font-size: 11px; color: var(--text-secondary); line-height: 1.7;
+        }
+        .fw-summary-item strong {
+            color: var(--text-primary); display: block; margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        /* === Comparison Table === */
+        .comparison-section {
+            min-height: auto; width: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; position: relative;
+            padding: 90px 0 80px; background: rgba(0,0,0,0.015);
+        }
+        .comparison-table-wrap {
+            width: 94%; max-width: 1080px;
+            opacity: 0; transform: translateY(30px);
+            transition: 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+            overflow-x: auto;
+        }
+        .section-active .comparison-table-wrap { opacity: 1; transform: translateY(0); }
+        .comp-table {
+            width: 100%; border-collapse: collapse;
+            font-size: 11px;
+        }
+        .comp-table thead th {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 1.5px; opacity: 0.7;
+            padding: 16px 14px; text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        .comp-table thead th:first-child {
+            color: var(--text-muted); opacity: 0.5;
+        }
+        .comp-table tbody td {
+            padding: 14px 14px; color: var(--text-secondary);
+            border-bottom: 1px solid rgba(0,0,0,0.04);
+            line-height: 1.6; vertical-align: top; font-size: 12px;
+        }
+        .comp-table tbody td:first-child {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--text-muted); white-space: nowrap;
+            letter-spacing: 1px;
+        }
+        .comp-table tbody tr:hover td {
+            background: rgba(91,122,154,0.02);
+        }
+        .comp-highlight {
+            color: var(--accent); font-weight: 600;
+        }
+
+        /* Framework detail mini-section */
+        .framework-detail-section {
+            min-height: auto; width: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; position: relative;
+            padding: 90px 0 80px; background: rgba(0,0,0,0.05);
+        }
+        .fw-detail-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 24px; max-width: 1080px; width: 94%;
+            opacity: 0; transform: translateY(30px);
+            transition: 0.9s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        .section-active .fw-detail-grid { opacity: 1; transform: translateY(0); }
+        .fw-detail-card {
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            background: transparent;
+            padding: 32px 28px;
+            transition: all 0.35s ease;
+        }
+        .fw-detail-card:hover {
+            border-color: var(--border-default);
+            background: rgba(0,0,0,0.015);
+        }
+        .fw-detail-card .fw-detail-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 14px;
+            color: var(--accent); letter-spacing: 1px; margin-bottom: 6px;
+        }
+        .fw-detail-card .fw-detail-sub {
+            font-size: 11px; color: var(--text-muted); margin-bottom: 20px;
+        }
+        .fw-detail-card .fw-detail-layer {
+            margin-bottom: 20px;
+        }
+        .fw-detail-card .fw-layer-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px;
+            color: var(--accent); letter-spacing: 2px; margin-bottom: 6px;
+            opacity: 0.7;
+        }
+        .fw-detail-card .fw-layer-items {
+            list-style: none; padding: 0; margin: 0;
+        }
+        .fw-detail-card .fw-layer-items li {
+            font-size: 11px; color: var(--text-secondary); line-height: 1.7;
+            padding: 4px 0; padding-left: 12px;
+            border-left: 1px solid var(--border-subtle);
+            margin-bottom: 4px;
+        }
+        .fw-detail-card .fw-layer-items li::before {
+            content: '·'; color: var(--accent); margin-left: -12px;
+            margin-right: 8px;
+        }
+
+        /* Alternating section backgrounds for visual rhythm */
+        .deep-section { background: transparent; }
+        .deep-section:nth-child(odd) { background: rgba(0,0,0,0.015); }
+        .deep-section:nth-child(even) { background: transparent; }
+        .flowchart-section { background: rgba(0,0,0,0.02); }
+        .comparison-section { background: transparent; }
+        .framework-detail-section { background: rgba(0,0,0,0.02); }
+        .scroll-section { background: transparent; }
+        .scroll-section:nth-child(odd) { background: rgba(0,0,0,0.02); }
+
+        /* Page Coda */
+        .page-coda {
+            width: 100%; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 100px 0 120px; text-align: center;
+            background: rgba(0,0,0,0.04);
+        }
+        .coda-line { width: 80px; height: 1px; background: var(--accent); opacity: 0.2; margin-bottom: 32px; }
+        .coda-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); letter-spacing: 3px; opacity: 0.45; margin-bottom: 20px; }
+        .coda-sub { font-size: 13px; color: var(--text-muted); line-height: 1.9; max-width: 480px; margin-bottom: 40px; }
+        .coda-return { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text-muted); letter-spacing: 2px; cursor: pointer; transition: color 0.3s ease; }
+        .coda-return:hover { color: var(--accent); }
+        .coda-glossary { margin-top: 28px; font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 2px; }
+        .coda-glossary a { color: var(--text-muted); text-decoration: none; transition: color 0.3s ease; }
+        .coda-glossary a:hover { color: var(--accent); }
+
+        @media (max-width: 1000px) {
+            .bp-node-wrap { width: 160px; }
+            .bp-desc { font-size: 9px; }
+            .addition-col { width: 160px; }
+            .addition-col-spacer { width: 20px; }
+            .bp-arrow-col { width: 20px; }
+            .fw-summary-grid { grid-template-columns: repeat(2, 1fr); }
+            .fw-detail-grid { grid-template-columns: repeat(2, 1fr); }
+            .comp-table { font-size: 10px; }
+        }
+        @media (max-width: 860px) {
+            .paradigm-grid { grid-template-columns: repeat(2, 1fr); }
+            .base-pipeline-expanded { flex-wrap: wrap; gap: 24px; }
+            .bp-node-wrap { width: 44%; }
+            .bp-arrow-col { width: 6%; }
+            .addition-area { flex-wrap: wrap; }
+            .addition-col { width: 44%; }
+            .addition-col-spacer { width: 6%; }
+            .fw-detail-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 600px) {
+            .fw-summary-grid { grid-template-columns: 1fr; }
+            .bp-node-wrap { width: 100%; }
+            .bp-arrow-col { display: none; }
+            .addition-col { width: 100%; }
+            .addition-col-spacer { display: none; }
+        }
+        @media (max-width: 560px) {
+            .paradigm-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ========== 7. Section Dot Navigation ========== */
+        .section-nav { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); z-index: 10002; display: flex; flex-direction: column; gap: 18px; }
+        .section-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(0,0,0,0.1); cursor: pointer; transition: all 0.35s ease; position: relative; }
+        .section-dot:hover { background: rgba(0,0,0,0.3); transform: scale(1.5); }
+        .section-dot.active { background: var(--accent); box-shadow: 0 0 8px rgba(91,122,154,0.35); transform: scale(1.2); }
+        .section-dot-label { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--accent); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; letter-spacing: 1px; }
+        .section-dot:hover .section-dot-label { opacity: 1; }
+
+        /* ========== 8. Staggered Reveal ========== */
+        .concept-block, .code-snippet, .key-insight, .concept-divider { transition: opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 0.61, 0.36, 1), border-color 0.35s ease, box-shadow 0.35s ease, background 0.35s ease; }
+        .deep-section:not(.section-active) .concept-block,
+        .deep-section:not(.section-active) .code-snippet,
+        .deep-section:not(.section-active) .key-insight,
+        .deep-section:not(.section-active) .concept-divider { opacity: 0; transform: translateY(16px); }
+        .deep-section.section-active .concept-block,
+        .deep-section.section-active .code-snippet,
+        .deep-section.section-active .key-insight,
+        .deep-section.section-active .concept-divider { opacity: 1; transform: translateY(0); }
+
+        /* ========== 9. Interactive ReAct Demo ========== */
+        .react-interactive { text-align: center; }
+        .react-step-display { width: 80%; max-width: 620px; margin: 0 auto 28px; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+        .react-step-card { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-secondary); background: transparent; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 26px 30px; text-align: left; line-height: 1.9; opacity: 0; transform: translateY(12px); transition: all 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); white-space: pre-wrap; display: none; width: 100%; }
+        .react-step-card.visible { opacity: 1; transform: translateY(0); display: block; }
+        .react-step-card .step-label { font-size: 10px; color: var(--accent); letter-spacing: 2px; margin-bottom: 10px; }
+        .react-progress { display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 28px; }
+        .react-progress-dot { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #555; cursor: pointer; transition: all 0.35s ease; background: transparent; }
+        .react-progress-dot:hover { border-color: var(--border-default); color: var(--text-secondary); }
+        .react-progress-dot.done { border-color: var(--accent); color: var(--accent); background: rgba(91,122,154,0.06); }
+        .react-progress-dot.current { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 14px rgba(91,122,154,0.25); }
+        .react-progress-line { width: 18px; height: 1px; background: var(--border-subtle); }
+        .react-progress-line.done { background: var(--accent); }
+        .react-advance-hint { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #B0B0B0; letter-spacing: 2px; margin-top: 16px; cursor: pointer; transition: color 0.3s ease; user-select: none; }
+        .react-advance-hint:hover { color: var(--accent); }
+
+        /* ========== 10. Trace Section ========== */
+        .trace-section { min-height: auto; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; padding: 90px 0 80px; background: rgba(0,0,0,0.02); }
+        .trace-container { width: 80%; max-width: 800px; opacity: 0; transform: translateY(30px); transition: 0.9s cubic-bezier(0.22, 0.61, 0.36, 1); }
+        .section-active .trace-container { opacity: 1; transform: translateY(0); }
+        .trace-flow { display: flex; flex-direction: column; gap: 0; position: relative; }
+        .trace-step { display: flex; gap: 24px; align-items: flex-start; position: relative; padding: 22px 0; }
+        .trace-step::before { content: ''; position: absolute; left: 18px; top: 54px; width: 1px; height: calc(100% - 44px); background: var(--border-subtle); }
+        .trace-step:last-child::before { display: none; }
+        .trace-step-icon { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); background: rgba(91,122,154,0.04); position: relative; z-index: 1; }
+        .trace-step-body { flex: 1; }
+        .trace-step-layer { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 2px; margin-bottom: 6px; }
+        .trace-step-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
+        .trace-step-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.8; margin-bottom: 8px; }
+        .trace-step-code { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #666; background: rgba(0,0,0,0.02); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 12px 16px; white-space: pre-wrap; line-height: 1.7; }
+
+        /* ========== 11. Mini Compare Table ========== */
+        .mini-compare { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+        .mini-compare th { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--accent); letter-spacing: 1.5px; padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border-subtle); opacity: 0.6; }
+        .mini-compare td { padding: 10px 12px; color: var(--text-secondary); border-bottom: 1px solid rgba(0,0,0,0.03); }
+        .mini-compare td:first-child { color: var(--text-primary); font-weight: 500; }
+        .mini-compare tr:hover td { background: rgba(91,122,154,0.02); }
+
+        /* ========== 12. Pulse Hint ========== */
+        .pulse-hint { animation: hintPulse 0.8s ease-in-out 3; }
+        @keyframes hintPulse { 0%, 100% { box-shadow: 0 0 0 rgba(91,122,154,0); } 50% { box-shadow: 0 0 24px rgba(91,122,154,0.3); } }
+
+        /* ========== 13. Section Bridges — Data Flow Connectors ========== */
+        .section-bridge {
+            width: 100%; display: flex; align-items: center; justify-content: center;
+            padding: 40px 0 36px; position: relative; overflow: hidden;
+        }
+        .bridge-inner {
+            display: flex; flex-direction: column; align-items: center; gap: 14px;
+            opacity: 0; transform: translateY(20px);
+            transition: 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        .section-bridge.section-active .bridge-inner { opacity: 1; transform: translateY(0); }
+        .bridge-flow {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            position: relative;
+        }
+        .bridge-particle {
+            width: 3px; height: 3px; border-radius: 50%;
+            background: var(--accent); opacity: 0;
+            box-shadow: 0 0 4px var(--accent);
+            animation: particleFlow 2.2s ease-in-out infinite;
+        }
+        .bridge-particle:nth-child(2) { animation-delay: 0.35s; }
+        .bridge-particle:nth-child(3) { animation-delay: 0.7s; }
+        .bridge-particle:nth-child(4) { animation-delay: 1.05s; }
+        .bridge-particle:nth-child(5) { animation-delay: 1.4s; }
+        @keyframes particleFlow {
+            0% { opacity: 0; transform: translateY(-6px); }
+            20% { opacity: 0.9; }
+            60% { opacity: 0.4; transform: translateY(8px); }
+            100% { opacity: 0; transform: translateY(14px); }
+        }
+        .bridge-arrow {
+            font-size: 16px; color: rgba(91,122,154,0.25);
+            animation: arrowBob 1.6s ease-in-out infinite;
+        }
+        @keyframes arrowBob {
+            0%, 100% { opacity: 0.3; transform: translateY(0); }
+            50% { opacity: 0.8; transform: translateY(4px); }
+        }
+        .bridge-label {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--text-muted); letter-spacing: 1px; text-align: center;
+        }
+        .bridge-label .hl { color: var(--accent); opacity: 0.6; }
+        .bridge-line {
+            width: 1px; height: 22px; background: linear-gradient(to bottom, transparent, rgba(91,122,154,0.15), transparent);
+        }
+        .bridge-glow {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            width: 260px; height: 80px;
+            background: radial-gradient(ellipse, rgba(91,122,154,0.06) 0%, transparent 70%);
+            pointer-events: none;
+            animation: bridgePulse 3s ease-in-out infinite;
+        }
+        @keyframes bridgePulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* ========== 14. Framework Overlay Page ========== */
+        #fw-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: #F9F6F0; z-index: 20000; display: none; opacity: 0;
+            overflow-y: auto; overflow-x: hidden;
+            transition: opacity 0.5s ease;
+        }
+        #fw-overlay.active { opacity: 1; }
+        #fw-overlay::-webkit-scrollbar { width: 3px; }
+        #fw-overlay::-webkit-scrollbar-track { background: transparent; }
+        #fw-overlay::-webkit-scrollbar-thumb { background: rgba(91,122,154,0.1); border-radius: 2px; }
+        #fw-overlay { scrollbar-width: thin; scrollbar-color: rgba(91,122,154,0.1) transparent; }
+
+        .fw-back-btn {
+            position: fixed; top: 36px; left: 44px; z-index: 20001;
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: #999; letter-spacing: 2px; background: none; border: none;
+            cursor: pointer; padding: 0; transition: color 0.3s ease;
+        }
+        .fw-back-btn:hover { color: var(--accent); }
+        .fw-back-btn span { display: inline-block; transition: transform 0.3s ease; }
+        .fw-back-btn:hover span { transform: translateX(-4px); }
+
+        .fw-overlay-inner {
+            max-width: 820px; margin: 0 auto; padding: 100px 40px 100px;
+        }
+        .fw-header {
+            display: flex; align-items: center; gap: 24px; margin-bottom: 56px;
+        }
+        .fw-logo-badge {
+            flex-shrink: 0; width: 56px; height: 56px; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px; font-weight: 700; letter-spacing: 1px;
+            position: relative;
+        }
+        .fw-logo-badge::after {
+            content: ''; position: absolute; inset: -2px; border-radius: 16px;
+            opacity: 0.3; z-index: -1;
+        }
+        .fw-logo-badge.claude { background: #1a1025; border: 2px solid #e94560; color: #e94560; }
+        .fw-logo-badge.claude::after { background: #e94560; filter: blur(12px); }
+        .fw-logo-badge.openclaw { background: #101a25; border: 2px solid #7b2ff7; color: #7b2ff7; }
+        .fw-logo-badge.openclaw::after { background: #7b2ff7; filter: blur(12px); }
+        .fw-logo-badge.langchain { background: #10251a; border: 2px solid #2ecc71; color: #2ecc71; }
+        .fw-logo-badge.langchain::after { background: #2ecc71; filter: blur(12px); }
+        .fw-logo-badge.autogpt { background: #251a10; border: 2px solid #f39c12; color: #f39c12; }
+        .fw-logo-badge.autogpt::after { background: #f39c12; filter: blur(12px); }
+        .fw-logo-badge.hermes { background: #1a1a25; border: 2px solid #9b59b6; color: #9b59b6; }
+        .fw-logo-badge.hermes::after { background: #9b59b6; filter: blur(12px); }
+        .fw-logo-badge.crewai { background: #102525; border: 2px solid #1abc9c; color: #1abc9c; }
+        .fw-logo-badge.crewai::after { background: #1abc9c; filter: blur(12px); }
+
+        .fw-header-info h1 { font-size: 28px; font-weight: 200; letter-spacing: 1px; color: var(--text-primary); margin: 0 0 6px 0; }
+        .fw-header-info .fw-tagline { font-size: 12px; color: var(--text-muted); letter-spacing: 1px; }
+        .fw-header-info .fw-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.8; margin-top: 10px; max-width: 560px; }
+
+        /* Architecture Flow Diagram */
+        .fw-arch-flow {
+            margin: 48px 0 56px; position: relative;
+        }
+        .fw-arch-title {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 3px; margin-bottom: 32px;
+            opacity: 0.6; text-align: center;
+        }
+        .fw-arch-pipeline {
+            display: flex; flex-direction: column; gap: 0;
+            position: relative; padding-left: 36px;
+        }
+        .fw-arch-pipeline::before {
+            content: ''; position: absolute; left: 17px; top: 28px;
+            width: 2px; height: calc(100% - 56px);
+            background: linear-gradient(to bottom, var(--accent), rgba(91,122,154,0.08), var(--accent), rgba(91,122,154,0.08), var(--accent));
+            opacity: 0.25;
+        }
+        .fw-arch-stage {
+            display: flex; gap: 20px; align-items: flex-start;
+            padding: 18px 0; position: relative;
+        }
+        .fw-arch-dot {
+            flex-shrink: 0; width: 12px; height: 12px; border-radius: 50%;
+            border: 2px solid var(--accent); background: var(--bg-base);
+            position: relative; z-index: 1; margin-top: 5px;
+            box-shadow: 0 0 8px rgba(91,122,154,0.2);
+        }
+        .fw-arch-dot.input { border-color: #888; box-shadow: none; }
+        .fw-arch-dot.output { border-color: #888; box-shadow: none; }
+        .fw-arch-card {
+            flex: 1; background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px; padding: 18px 22px;
+            transition: border-color 0.35s ease;
+        }
+        .fw-arch-card:hover { border-color: var(--border-default); }
+        .fw-arch-card .arch-layer-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 2px; margin-bottom: 10px;
+        }
+        .fw-arch-card .arch-items {
+            display: flex; flex-wrap: wrap; gap: 6px;
+        }
+        .fw-arch-card .arch-item {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px;
+            color: var(--text-secondary); background: rgba(91,122,154,0.04);
+            border: 1px solid rgba(91,122,154,0.08);
+            border-radius: 4px; padding: 4px 10px;
+            white-space: nowrap;
+        }
+
+        /* Framework detail cards below flow */
+        .fw-detail-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 48px; }
+        .fw-detail-card {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px; padding: 24px;
+        }
+        .fw-detail-card .fw-dc-layer {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px;
+            color: var(--accent); letter-spacing: 3px; margin-bottom: 12px;
+            opacity: 0.7;
+        }
+        .fw-detail-card .fw-dc-item {
+            font-size: 11px; color: var(--text-secondary); line-height: 1.7;
+            padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.04);
+        }
+        .fw-detail-card .fw-dc-item:last-child { border-bottom: none; }
+        .fw-detail-card .fw-dc-item strong { color: var(--text-primary); font-size: 11px; }
+        .fw-detail-card .fw-dc-code {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #666;
+            background: rgba(0,0,0,0.06); border-radius: 3px; padding: 4px 8px;
+            margin-top: 4px; display: block; white-space: pre-wrap;
+        }
+
+        /* Framework tabs */
+        .fw-tabs {
+            display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+            margin-bottom: 48px;
+        }
+        .fw-tab {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: #555; background: transparent;
+            border: 1px solid var(--border-subtle); border-radius: 16px;
+            padding: 6px 16px; cursor: pointer; letter-spacing: 1px;
+            transition: all 0.3s ease;
+        }
+        .fw-tab:hover { color: var(--accent); border-color: var(--border-default); }
+        .fw-tab.active { color: var(--accent); border-color: var(--accent); background: rgba(91,122,154,0.05); }
+
+        @media (max-width: 860px) {
+            .fw-overlay-inner { padding: 80px 24px 60px; }
+            .fw-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+            .fw-detail-cards { grid-template-columns: 1fr; }
+            .fw-arch-pipeline { padding-left: 24px; }
+            .fw-arch-pipeline::before { left: 11px; }
+            .fw-tabs { gap: 6px; }
+            .fw-tab { font-size: 9px; padding: 5px 12px; }
+            .builder-columns { grid-template-columns: repeat(2, 1fr); }
+            .builder-container { padding: 80px 24px 60px; }
+            .builder-back { left: 20px; }
+            .bp-preview-flow { gap: 4px; }
+        }
+        @media (max-width: 560px) {
+            .builder-columns { grid-template-columns: 1fr; }
+        }
+
+        /* ========== 15. Agent Builder Overlay ========== */
+        #builder-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: #F9F6F0; z-index: 20001; display: none; opacity: 0;
+            overflow-y: auto; overflow-x: hidden;
+            transition: opacity 0.5s ease;
+        }
+        #builder-overlay.active { opacity: 1; }
+        #builder-overlay::-webkit-scrollbar { width: 3px; }
+        #builder-overlay::-webkit-scrollbar-track { background: transparent; }
+        #builder-overlay::-webkit-scrollbar-thumb { background: rgba(91,122,154,0.1); border-radius: 2px; }
+
+        .builder-back {
+            position: fixed; top: 36px; left: 44px; z-index: 20002;
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            color: #999; letter-spacing: 2px; background: none; border: none;
+            cursor: pointer; padding: 0; transition: color 0.3s ease;
+        }
+        .builder-back:hover { color: var(--accent); }
+        .builder-back span { display: inline-block; transition: transform 0.3s ease; }
+        .builder-back:hover span { transform: translateX(-4px); }
+
+        .builder-container {
+            max-width: 1000px; margin: 0 auto; padding: 90px 36px 100px;
+        }
+        .builder-title {
+            text-align: center; margin-bottom: 8px;
+        }
+        .builder-title h2 {
+            font-size: 26px; font-weight: 200; letter-spacing: 1px;
+            color: var(--text-primary); margin: 0 0 10px 0;
+        }
+        .builder-subtitle {
+            font-size: 12px; color: var(--text-muted); line-height: 1.8;
+            max-width: 560px; margin: 0 auto 48px; text-align: center;
+        }
+        .builder-progress-bar {
+            display: flex; gap: 0; justify-content: center; margin-bottom: 48px;
+        }
+        .builder-prog-seg {
+            width: 80px; height: 2px; background: var(--border-subtle);
+            transition: background 0.4s ease;
+        }
+        .builder-prog-seg.done { background: var(--accent); }
+
+        /* Module Selection Grid */
+        .builder-columns {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 16px; margin-bottom: 40px;
+        }
+        .builder-column {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .builder-col-header {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            letter-spacing: 2px; padding: 10px 0; text-align: center;
+            border-bottom: 1px solid var(--border-subtle); margin-bottom: 4px;
+        }
+        .builder-col-header.p { color: #5B7A9A; }
+        .builder-col-header.m { color: #B482FF; }
+        .builder-col-header.b { color: #FFB450; }
+        .builder-col-header.a { color: #50DC8C; }
+        .builder-module {
+            background: transparent;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px; padding: 16px; cursor: pointer;
+            transition: all 0.35s ease; position: relative;
+        }
+        .builder-module:hover {
+            border-color: var(--border-default);
+            background: rgba(0,0,0,0.03);
+            transform: translateY(-1px);
+        }
+        .builder-module.selected {
+            border-color: var(--accent);
+            background: rgba(91,122,154,0.06);
+            box-shadow: 0 0 16px rgba(91,122,154,0.08);
+        }
+        .builder-module .mod-icon {
+            font-family: 'JetBrains Mono', monospace; font-size: 16px;
+            color: var(--accent); margin-bottom: 6px;
+        }
+        .builder-module .mod-name {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--text-primary); letter-spacing: 1px; margin-bottom: 4px;
+        }
+        .builder-module .mod-desc {
+            font-size: 10px; color: #777; line-height: 1.5;
+        }
+        .builder-module .mod-check {
+            position: absolute; top: 8px; right: 10px;
+            font-size: 12px; color: var(--accent); opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .builder-module.selected .mod-check { opacity: 1; }
+
+        /* Pipeline Preview */
+        .builder-pipeline {
+            margin: 40px 0; padding: 32px 28px;
+            background: rgba(91,122,154,0.015);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+        }
+        .builder-pipeline-title {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 3px; margin-bottom: 24px;
+            text-align: center; opacity: 0.6;
+        }
+        .bp-preview-flow {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0; flex-wrap: wrap;
+        }
+        .bp-preview-node {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 8px 14px; min-width: 80px;
+        }
+        .bp-preview-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--border-subtle); transition: all 0.4s ease;
+        }
+        .bp-preview-dot.filled { background: var(--accent); box-shadow: 0 0 10px rgba(91,122,154,0.4); }
+        .bp-preview-label {
+            font-family: 'JetBrains Mono', monospace; font-size: 8px;
+            color: #555; margin-top: 6px; text-align: center;
+            transition: color 0.4s ease;
+        }
+        .bp-preview-label.filled { color: var(--accent); }
+        .bp-preview-arrow {
+            font-size: 16px; color: var(--border-subtle);
+            padding: 0 2px; transition: color 0.4s ease;
+        }
+        .bp-preview-arrow.active { color: var(--accent); }
+
+        /* Run Button */
+        .builder-actions {
+            display: flex; justify-content: center; gap: 16px;
+            margin: 32px 0;
+        }
+        .builder-btn {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            letter-spacing: 2px; padding: 12px 32px; border-radius: 24px;
+            cursor: pointer; transition: all 0.35s ease;
+            background: transparent; border: 1px solid var(--border-subtle);
+            color: #555;
+        }
+        .builder-btn:hover { color: var(--accent); border-color: var(--border-default); }
+        .builder-btn.primary {
+            border-color: var(--accent); color: var(--accent);
+            background: rgba(91,122,154,0.06);
+        }
+        .builder-btn.primary:hover {
+            background: rgba(91,122,154,0.12);
+            box-shadow: 0 0 20px rgba(91,122,154,0.15);
+        }
+        .builder-btn:disabled {
+            opacity: 0.25; cursor: not-allowed; pointer-events: none;
+        }
+
+        /* Demo Animation Area */
+        .builder-demo {
+            margin-top: 40px; display: none;
+            padding: 28px; background: rgba(0,0,0,0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+        }
+        .builder-demo.active { display: block; }
+        .demo-title {
+            font-family: 'JetBrains Mono', monospace; font-size: 10px;
+            color: var(--accent); letter-spacing: 3px; margin-bottom: 24px;
+            text-align: center;
+        }
+        .demo-flow {
+            display: flex; flex-direction: column; gap: 0;
+            position: relative; padding-left: 32px;
+        }
+        .demo-flow::before {
+            content: ''; position: absolute; left: 15px; top: 20px;
+            width: 2px; height: calc(100% - 40px);
+            background: var(--border-subtle);
+        }
+        .demo-step {
+            display: flex; gap: 16px; align-items: flex-start;
+            padding: 14px 0; position: relative;
+            opacity: 0.2; transition: opacity 0.6s ease;
+        }
+        .demo-step.animating { opacity: 1; }
+        .demo-step.done { opacity: 0.7; }
+        .demo-dot {
+            flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%;
+            border: 2px solid var(--border-subtle); background: transparent;
+            position: relative; z-index: 1; margin-top: 4px;
+            transition: all 0.5s ease;
+        }
+        .demo-step.animating .demo-dot {
+            border-color: var(--accent); background: var(--accent);
+            box-shadow: 0 0 14px rgba(91,122,154,0.4);
+        }
+        .demo-step.done .demo-dot {
+            border-color: var(--accent); background: rgba(91,122,154,0.3);
+        }
+        .demo-body {
+            flex: 1; font-size: 12px; color: var(--text-secondary);
+            line-height: 1.8;
+        }
+        .demo-body .demo-layer {
+            font-family: 'JetBrains Mono', monospace; font-size: 9px;
+            letter-spacing: 2px; margin-bottom: 4px;
+        }
+        .demo-body .demo-content {
+            color: #999; transition: color 0.5s ease;
+        }
+        .demo-step.animating .demo-body .demo-content { color: var(--text-secondary); }
+        .demo-body .demo-highlight {
+            color: var(--accent); font-weight: 600;
+        }
+        .demo-reset {
+            text-align: center; margin-top: 24px;
+        }
+
+        @media (max-width: 860px) {
+            .section-nav { right: 8px; gap: 12px; }
+            .section-dot { width: 4px; height: 4px; }
+            .trace-container { width: 94%; }
+            .trace-step { gap: 14px; }
+            .trace-step-code { font-size: 9px; }
+        }
+        @media (max-width: 560px) {
+            .section-nav { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="code-rain"></canvas>
+    <div id="ambient-light"></div>
+    <div id="quantum-glow"></div>
+
+    <div class="corner-mark top-left">[ PROJECT_VOID // AGENT.CORE_ARCH ]</div>
+    <div class="corner-mark bottom-right"><div class="status-dot"></div> SYS_ONLINE</div>
+
+    <div id="main-content">
+        <div class="manifesto">
+            <div class="manifesto-label">[ Intelligence as a Flow State ]</div>
+            <h1 class="manifesto-title">智能的流转态</h1>
+            <p class="manifesto-desc">Agent 并非不可解析的黑盒。点击任意节点开启深度解码。</p>
+        </div>
+        
+        <div class="pipeline-container">
+            <div class="main-line"></div>
+            <div class="node" data-target="sec-perception">
+                <div class="shape" style="border-radius: 50%"></div>
+                <div class="text-content">
+                    <div class="title">PERCEPTION</div>
+                    <div class="code-meta">sys.listen(inputs)</div>
+                    <div class="desc">捕获环境信号，剥离系统噪音。点击深入学习。</div>
+                </div>
+            </div>
+            <div class="node" data-target="sec-memory">
+                <div class="shape" style="transform: rotate(45deg)"></div>
+                <div class="text-content">
+                    <div class="title">MEMORY</div>
+                    <div class="code-meta">db.retrieve(vectors)</div>
+                    <div class="desc">压缩上下文，抵抗遗忘。点击深入学习。</div>
+                </div>
+            </div>
+            <div id="brain-node" class="node" data-target="sec-brain">
+                <div class="shape"></div>
+                <div class="text-content">
+                    <div class="title">BRAIN</div>
+                    <div class="code-meta">llm.reason(CoT)</div>
+                    <div class="desc">涌现逻辑，拆解意图。点击深入学习。</div>
+                </div>
+            </div>
+            <div class="node" data-target="sec-action">
+                <div class="shape" style="border-left: 16px solid rgba(0,0,0,0.05); background:none; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right:none; width:0; height:0;"></div>
+                <div class="text-content">
+                    <div class="title">ACTION</div>
+                    <div class="code-meta">tool.execute(json)</div>
+                    <div class="desc">组装参数，调用接口。点击深入学习。</div>
+                </div>
+            </div>
+        </div>
+        <div class="builder-entry" onclick="openBuilder()">
+            <span class="builder-entry-icon">⚙</span>
+            <span>BUILD YOUR OWN AGENT</span>
+            <span class="builder-entry-arrow">→</span>
+        </div>
+    </div>
+
+    <div id="detail-page">
+        <canvas id="code-rain-detail"></canvas>
+        <button class="back-btn" id="back-btn">
+            <span class="back-btn-arrow">&larr;</span> RETURN_HOME
+        </button>
+
+        <nav class="section-nav" id="section-nav">
+            <div class="section-dot" data-target="sec-perception"><span class="section-dot-label">Perception</span></div>
+            <div class="section-dot" data-target="sec-memory"><span class="section-dot-label">Memory</span></div>
+            <div class="section-dot" data-target="sec-brain"><span class="section-dot-label">Brain / CoT</span></div>
+            <div class="section-dot" data-target="sec-react"><span class="section-dot-label">ReAct Loop</span></div>
+            <div class="section-dot" data-target="sec-action"><span class="section-dot-label">Action</span></div>
+            <div class="section-dot" data-target="sec-trace"><span class="section-dot-label">Full Trace</span></div>
+            <div class="section-dot" data-target="sec-flowchart"><span class="section-dot-label">Frameworks</span></div>
+            <div class="section-dot" data-target="sec-paradigms"><span class="section-dot-label">Paradigms</span></div>
+            <div class="section-dot" data-target="sec-comparison"><span class="section-dot-label">Compare</span></div>
+        </nav>
+
+        <section class="scroll-section">
+            <div class="terminal-box" id="terminal">
+                <span id="typewriter"></span><span style="display:inline-block; width:8px; height:15px; background:var(--accent); animation:blink 1s infinite; vertical-align: middle; margin-left: 5px;"></span>
+            </div>
+            <div class="scroll-hint">SCROLL_TO_DECODE &darr;</div>
+        </section>
+
+        <section class="deep-section" id="sec-perception">
+            <div class="deep-container">
+                <div class="deep-section-label">[ LAYER_01 ]</div>
+                <h2 class="deep-section-title">感知层 · Perception</h2>
+                <div class="deep-subtitle">sys.listen(inputs) &rarr; tokenize &rarr; embed &rarr; context_window</div>
+                <div class="concept-block">
+                    <h4>输入源多样化</h4>
+                    <p>Agent 的感官远不止文本输入。用户消息、工具返回结果、系统事件、文件内容——这些异构信号流共同构成感知层的原始输入。感知层的核心任务是将一切外部信号统一转化为模型可消费的 token 序列。</p>
+                </div>
+                <div class="concept-block">
+                    <h4>Tokenization 原理</h4>
+                    <p>所有输入文本首先经过分词器（如 GPT 的 <a href="glossary/tokenization.html" class="glossary-link" target="_blank">BPE</a> — Byte Pair Encoding）切分为 <a href="glossary/tokenization.html" class="glossary-link" target="_blank">token</a>。BPE 从字符级开始，统计高频相邻对并合并为一个新 token，迭代至预设词表大小（如 100K）。这解释了为什么中文通常比英文消耗更多 token——每个汉字可能被拆为 1-3 个 token。</p>
+                </div>
+                <div class="concept-divider"></div>
+                <div class="code-snippet">// Tokenization 示意：BPE 合并过程
+// 输入："Agent 架构解析"
+// Step 1: ['A','g','e','n','t',' ','架','构','解','析']
+// Step 2: 高频对合并 → ['Ag','en','t',' ','架构','解','析']
+// Step 3: 继续合并 → ['Agent',' ','架构','解析']
+// 实际词表可达 100K+ 个 token</div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4><a href="glossary/context-window.html" class="glossary-link" target="_blank">上下文窗口</a>管理</h4>
+                    <p>每个模型有固定的<a href="glossary/context-window.html" class="glossary-link" target="_blank">上下文窗口</a>（如 128K tokens）。当对话历史超出窗口时，需要策略性取舍：<span class="highlight-term">滑动窗口</span>保留最近 N 条消息，<span class="highlight-term">摘要压缩</span>将早期对话浓缩为一段摘要。感知层负责在信息完整性与 token 预算之间做动态平衡。</p>
+                </div>
+                <div class="concept-block">
+                    <h4>主流模型上下文窗口对比</h4>
+                    <table class="mini-compare">
+                        <tr><th>模型</th><th>上下文窗口</th><th>等效规模</th><th>备注</th></tr>
+                        <tr><td>Claude 3.5 Sonnet</td><td>200K tokens</td><td>~500 页</td><td>当前最大可用窗口</td></tr>
+                        <tr><td>GPT-4 Turbo</td><td>128K tokens</td><td>~300 页</td><td>OpenAI 旗舰模型</td></tr>
+                        <tr><td>Gemini 1.5 Pro</td><td>1M tokens</td><td>~2500 页</td><td>实验性超长窗口</td></tr>
+                        <tr><td>DeepSeek V3</td><td>128K tokens</td><td>~300 页</td><td>开源模型最强</td></tr>
+                    </table>
+                </div>
+            </div>
+            <div class="code-decoration"><span class="code-decoration-line">const tokens = tokenizer.encode(input); // BPE → [101, 2054, 3822, ...] → embed(tokens) → Float32Array(1536)</span></div>
+        </section>
+
+        <div class="section-bridge">
+            <div class="bridge-glow"></div>
+            <div class="bridge-inner">
+                <div class="bridge-flow">
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div>
+                </div>
+                <div class="bridge-arrow">↓</div>
+                <div class="bridge-label"><span class="hl">tokenized embeddings</span> → vector retrieval & storage</div>
+                <div class="bridge-line"></div>
+            </div>
+        </div>
+
+        <section class="deep-section" id="sec-memory">
+            <div class="deep-container">
+                <div class="deep-section-label">[ LAYER_02 ]</div>
+                <h2 class="deep-section-title">记忆层 · Memory</h2>
+                <div class="deep-subtitle">db.retrieve(vectors) &rarr; top_k &rarr; rerank &rarr; augment</div>
+                <div class="concept-block">
+                    <h4>三种记忆模型</h4>
+                    <p>借鉴认知科学，Agent 的记忆分为三个层次：<span class="highlight-term">短期记忆</span> — 当前对话的完整上下文（受限于上下文窗口）；<span class="highlight-term">长期记忆</span> — 跨会话持久化的知识（向量数据库 + RAG）；<span class="highlight-term">工作记忆</span> — 当前任务执行中的中间状态（scratchpad / 推理缓存）。</p>
+                </div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4>向量嵌入 — 记忆的数学基础</h4>
+                    <p>这是整个记忆系统最底层的秘密。一段文本经过 <a href="glossary/embedding.html" class="glossary-link" target="_blank">Embedding 模型</a>（如 <span class="highlight-term">text-embedding-3-small</span>）被映射为高维空间中的一个点——通常是一个 1536 或 3072 维的<a href="glossary/embedding.html" class="glossary-link" target="_blank">浮点数向量</a>。语义相近的文本在这个空间中距离更近。<br><br>关键洞察：<span class="highlight-term">向量不是存储文本，而是编码语义</span>。两个向量之间的<a href="glossary/vector-search.html" class="glossary-link" target="_blank">余弦相似度</a>直接反映其语义关联程度。</p>
+                </div>
+                <div class="code-snippet">// 余弦相似度 — 向量检索的核心算法
+function cosineSimilarity(vecA, vecB) {
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i &lt; vecA.length; i++) {
+    dot += vecA[i] * vecB[i];
+    magA += vecA[i] * vecA[i];
+    magB += vecB[i] * vecB[i];
+  }
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+  // 返回值 [-1, 1]，接近 1 = 高度相关
+}</div>
+                <div class="key-insight">
+                    为什么余弦相似度比欧氏距离更适合语义检索？在高维空间中，欧氏距离受向量模长影响——长文本自然产生模长更大的向量，但这不代表语义更强。余弦相似度只关心<span style="color:var(--accent)">方向</span>，忽略模长，因此能公平比较不同长度的文本。这也是为什么 embedding 模型通常会做 L2 归一化——让所有向量落在单位球面上，此时余弦相似度等价于内积。
+                </div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4><a href="glossary/rag.html" class="glossary-link" target="_blank">RAG</a> — 检索增强生成</h4>
+                    <p>RAG 是长期记忆的工程实现范式，分为四个阶段：<br>
+                    <span class="highlight-term">① <a href="glossary/rag.html" class="glossary-link" target="_blank">Chunk 分割</a></span> — 将文档按语义边界切分为段落（通常 256-512 tokens），重叠 10-20% 防止边界截断；<br>
+                    <span class="highlight-term">② 向量化入库</span> — 每个 chunk 经 embedding 模型转为向量，存入<a href="glossary/vector-search.html" class="glossary-link" target="_blank">向量数据库</a>（Chroma / Milvus / Pinecone）；<br>
+                    <span class="highlight-term">③ 相似度检索</span> — 用户查询同样被向量化，在数据库中执行 <a href="glossary/vector-search.html" class="glossary-link" target="_blank">ANN</a>（近似最近邻）搜索，返回 Top-K 个最相似的 chunk；<br>
+                    <span class="highlight-term">④ 上下文增强</span> — 将检索到的 chunk 作为额外上下文注入 prompt，让 LLM 基于外部知识作答。</p>
+                </div>
+                <div class="code-snippet">// RAG 检索流程伪代码
+async function retrieve(query, topK = 5) {
+  // 1. 查询向量化
+  const qVec = await embed(query);
+  // 2. 向量数据库检索 (ANN)
+  const results = await vectorDB.search(qVec, topK);
+  // 3. 可选：重排序 (Rerank) 提升精度
+  const reranked = await reranker.rerank(query, results);
+  // 4. 拼接上下文注入 prompt
+  const context = reranked.map(r => r.text).join('\\n---\\n');
+  return `基于以下知识回答:\\n${context}\\n\\n问题: ${query}`;
+}</div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4>记忆压缩 — 对抗遗忘</h4>
+                    <p>当短期记忆超出上下文窗口时，不能简单截断。工程实践包括：<span class="highlight-term">递归摘要</span>（将旧对话折叠为总结段落）、<span class="highlight-term">滑动窗口 + 摘要</span>（窗口内保留原文，窗口外仅存摘要）、<span class="highlight-term">实体记忆</span>（提取关键实体和决策，结构化存储）。压缩的核心是信息密度的提升——用更少的 token 承载更多的语义。</p>
+                </div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4>主流嵌入模型对比</h4>
+                    <table class="mini-compare">
+                        <tr><th>模型</th><th>维度</th><th>最大输入</th><th>特点</th></tr>
+                        <tr><td>text-embedding-3-small</td><td>512</td><td>8191 tokens</td><td>性价比最高 · 适合大规模检索</td></tr>
+                        <tr><td>text-embedding-3-large</td><td>3072</td><td>8191 tokens</td><td>精度最高 · 适合高精度匹配</td></tr>
+                        <tr><td>Cohere Embed v3</td><td>1024</td><td>512 tokens</td><td>多语言优势 · 中文表现优秀</td></tr>
+                        <tr><td>BGE-M3 (BAAI 开源)</td><td>1024</td><td>8192 tokens</td><td>本地部署首选 · 无需 API</td></tr>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <div class="code-decoration"><span class="code-decoration-line">cosineSimilarity(vecA, vecB) → dot / (Math.sqrt(magA) * Math.sqrt(magB)) // 语义方向匹配 [-1, 1]</span></div>
+
+        <div class="section-bridge">
+            <div class="bridge-glow"></div>
+            <div class="bridge-inner">
+                <div class="bridge-flow">
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div>
+                </div>
+                <div class="bridge-arrow">↓</div>
+                <div class="bridge-label"><span class="hl">retrieved context + user profile</span> → reasoning engine</div>
+                <div class="bridge-line"></div>
+            </div>
+        </div>
+
+        <section class="scroll-section" id="sec-brain">
+            <canvas id="thinking-canvas"></canvas>
+            <div class="parallax-content">
+                <h2 class="parallax-title">推理层 · Brain</h2>
+                <div class="section-subtitle">llm.reason(CoT) · sys.reasoning_mode = DECOUPLED</div>
+                <p class="parallax-desc">
+                    剥离一切框架表象，LLM 的本质仅仅是概率预测。要将这个预测机变成智能体，必须强制它进行思维链（CoT）推演——将中间推理与最终输出解耦，让每一步思考都可见、可审计、可纠错。
+                </p>
+            </div>
+        </section>
+
+        <section class="deep-section" id="sec-cot-detail">
+            <div class="deep-container">
+                <div class="deep-section-label">[ BRAIN :: CoT ]</div>
+                <h2 class="deep-section-title">思维链深度解析</h2>
+                <div class="deep-subtitle">逐步推理 · 自洽性验证 · 思维树搜索</div>
+                <div class="concept-block">
+                    <h4><a href="glossary/reasoning.html" class="glossary-link" target="_blank">CoT</a> 为什么有效？</h4>
+                    <p>LLM 是<a href="glossary/llm-basics.html" class="glossary-link" target="_blank">自回归模型</a>——每个 token 的生成都依赖于之前所有 token。CoT 通过在前文写入推理步骤，<span class="highlight-term">扩大了有效上下文</span>：模型在生成答案时不仅能看问题，还能看到自己写下的分析过程。这本质是将隐式计算外化为显式文本，让模型自我引导。</p>
+                </div>
+                <div class="concept-block">
+                    <h4><a href="glossary/reasoning.html" class="glossary-link" target="_blank">思维树 (Tree of Thoughts)</a></h4>
+                    <p>进阶玩法：不只一条推理路径，而是同时展开多条，在每一步做剪枝评估。<a href="glossary/reasoning.html" class="glossary-link" target="_blank">BFS 广度搜索</a> + LLM 评分器，将推理建模为<a href="glossary/reasoning.html" class="glossary-link" target="_blank">启发式搜索</a>问题。当问题的分支因子高（如数学证明、编程方案选型）时，ToT 显著优于单链 CoT。</p>
+                </div>
+                <div class="key-insight">
+                    CoT / ToT 的本质不是让模型"更聪明"，而是<span style="color:var(--accent)">扩大有效上下文</span>。LLM 是自回归模型——每个 token 的生成概率依赖于前文所有 token。当你在 prompt 中写下推理步骤，这些步骤成为模型生成最终答案时的"锚点"，显著降低偏离正确路径的概率。这也是为什么零样本 CoT 只需加一句"Let's think step by step"就能提升准确率。
+                </div>
+                <div class="concept-divider"></div>
+                <div class="code-snippet">// CoT 提示模板
+const cotPrompt = `
+请逐步推理，每一步标明 [步骤N]：
+
+[步骤1] 分析已知条件和约束
+[步骤2] 提出可能的解决路径
+[步骤3] 逐一评估每条路径的可行性
+[步骤4] 选择最优路径并给出最终答案
+
+问题: ${userQuery}`;</div>
+            </div>
+        </section>
+
+        <div class="code-decoration"><span class="code-decoration-line">const thought = await llm.reason(query, { mode: 'chain-of-thought', steps: 4 }); // CoT → 外化推理</span></div>
+
+        <div class="section-bridge">
+            <div class="bridge-glow"></div>
+            <div class="bridge-inner">
+                <div class="bridge-flow">
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div>
+                </div>
+                <div class="bridge-arrow">↓</div>
+                <div class="bridge-label"><span class="hl">static reasoning</span> → runtime ReAct loop</div>
+                <div class="bridge-line"></div>
+            </div>
+        </div>
+
+        <section class="scroll-section" id="sec-react">
+            <div class="parallax-content react-interactive">
+                <h2 class="parallax-title">运行时闭环</h2>
+                <p class="parallax-desc" style="margin-bottom:40px">
+                    Reason → Act → Observe → Reason。思考产生动作，观察修正思考。这个闭环让 Agent 不再是一次性回答，而是能与真实环境持续博弈的自主系统。<br>点击下方步骤，逐帧推演一次完整的 ReAct 循环。
+                </p>
+                <div class="react-progress" id="react-progress">
+                    <div class="react-progress-dot current" data-step="0">1</div>
+                    <div class="react-progress-line"></div>
+                    <div class="react-progress-dot" data-step="1">2</div>
+                    <div class="react-progress-line"></div>
+                    <div class="react-progress-dot" data-step="2">3</div>
+                </div>
+                <div class="react-step-display" id="react-step-display">
+                    <div class="react-step-card visible" id="react-step-0">
+                        <div class="step-label">[ STEP 1 · REASON ]</div>
+                        用户提问："帮我查一下北京今天的天气，如果下雨就提醒我带伞。"
+
+                        LLM 分析：
+                        · 需要获取天气信息 → 调用 get_weather 工具
+                        · 参数：city="北京", date="today"
+                        · 拿到结果后需判断是否包含"雨"
+                        · 如含雨 → 文本提醒；如不含 → 告知天气即可
+                    </div>
+                    <div class="react-step-card" id="react-step-1">
+                        <div class="step-label">[ STEP 2 · ACT ]</div>
+                        → 调用工具: get_weather({ city: "北京", date: "2026-05-07" })
+
+                        ← 工具返回:
+                        {
+                          "city": "北京",
+                          "weather": "小雨转阴",
+                          "temp": "18°C ~ 24°C",
+                          "humidity": "85%",
+                          "rain_probability": "0.92"
+                        }
+                    </div>
+                    <div class="react-step-card" id="react-step-2">
+                        <div class="step-label">[ STEP 3 · OBSERVE → REASON ]</div>
+                        LLM 观察返回结果并推理：
+                        · weather 包含"雨" → 下雨判断为 True
+                        · rain_probability 0.92 → 降水概率 92%，确认需要提醒
+                        · 任务完成条件已满足
+
+                        → 生成最终回复:
+                        "北京今天小雨转阴，气温 18-24°C，降水概率 92%。
+                        建议您今天出门务必带上雨伞。☂️"
+
+                        → 本次 ReAct 循环结束 (3 steps total)
+                    </div>
+                </div>
+                <div class="react-advance-hint" id="react-advance-hint" onclick="advanceReAct()">
+                    [ 点击推进下一步 ]
+                </div>
+            </div>
+        </section>
+
+        <section class="deep-section" id="sec-react-detail">
+            <div class="deep-container">
+                <div class="deep-section-label">[ LOOP :: ReAct ]</div>
+                <h2 class="deep-section-title">ReAct 循环机制</h2>
+                <div class="deep-subtitle">while(task_not_done) { think → act → observe }</div>
+                <div class="concept-block">
+                    <h4>循环三阶段</h4>
+                    <p><span class="highlight-term">Reason</span> — LLM 分析当前状态、历史观察、可用工具，生成下一步推理和行动计划。<br>
+                    <span class="highlight-term">Act</span> — 将计划转化为具体的工具调用（<a href="glossary/tool-use.html" class="glossary-link" target="_blank">function call</a>），传入参数，等待执行结果。<br>
+                    <span class="highlight-term">Observe</span> — 接收工具返回结果，判断任务是否完成。未完成则带着新观察回到 Reason 阶段。</p>
+                </div>
+                <div class="code-snippet">// ReAct 主循环
+async function reactLoop(task, tools, maxSteps = 10) {
+  let history = [{ role: 'user', content: task }];
+  for (let step = 0; step &lt; maxSteps; step++) {
+    const response = await llm.chat(history, tools);
+    if (response.finish_reason === 'stop') break;
+    const result = await executeTool(response.tool_call);
+    history.push(response.message);
+    history.push({ role: 'tool', content: result });
+  }
+  return history;
+}</div>
+            </div>
+        </section>
+
+        <section class="deep-section" id="sec-action">
+            <div class="deep-container">
+                <div class="deep-section-label">[ LAYER_04 ]</div>
+                <h2 class="deep-section-title">执行层 · Action</h2>
+                <div class="deep-subtitle">tool.execute(json) → validate → sandbox → observe</div>
+                <div class="concept-block">
+                    <h4>Function Calling 协议</h4>
+                    <p>当 LLM 决定调用工具时，它不直接执行——而是输出一个结构化的 <a href="glossary/tool-use.html" class="glossary-link" target="_blank">JSON 函数调用</a>（函数名 + 参数）。Agent 框架拦截这个输出，校验参数合法性，在<a href="glossary/tool-use.html" class="glossary-link" target="_blank">沙箱</a>中真正执行，再将结果反馈给 LLM。LLM 本身是纯文本引擎，它不跑代码——它只是提议要跑什么代码。</p>
+                </div>
+                <div class="key-insight">
+                    这里有一个容易被忽视的安全边界：<span style="color:var(--accent)">LLM 的输出是不可信的</span>。它可能<a href="glossary/llm-basics.html" class="glossary-link" target="_blank">幻觉</a>出不存在的函数名、不合理的参数值、甚至尝试注入恶意命令。框架必须在 LLM 和真实执行环境之间充当"防火墙"——校验 schema、白名单工具名、限制执行权限。永远不要让 LLM 的原始输出直接接触系统调用。
+                </div>
+                <div class="concept-divider"></div>
+                <div class="concept-block">
+                    <h4>参数校验与 Schema</h4>
+                    <p>每个工具通过 <a href="glossary/tool-use.html" class="glossary-link" target="_blank">JSON Schema</a> 声明其接口契约：参数名、类型（string/number/boolean/object）、是否必填、枚举范围。框架在调用前做 schema validation，拦截 LLM 可能产生的幻觉参数（如文件路径不存在、数值越界）。这层校验是 Agent 安全性的第一道防线。</p>
+                </div>
+                <div class="code-snippet">// 工具定义 JSON Schema
+{
+  "name": "read_file",
+  "description": "读取指定路径的文件内容",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": { "type": "string", "description": "文件绝对路径" },
+      "encoding": { "type": "string", "enum": ["utf-8", "base64"] }
+    },
+    "required": ["path"]
+  }
+}</div>
+                <div class="concept-block">
+                    <h4>沙箱与容错</h4>
+                    <p>执行层必须假设工具调用 <span class="highlight-term">会失败</span>。文件不存在、API 超时、权限不足——这些异常不能使 Agent 崩溃。工程实践包括：<span class="highlight-term">超时控制</span>（每个工具调用有独立 timeout）、<span class="highlight-term">重试策略</span>（<a href="glossary/tool-use.html" class="glossary-link" target="_blank">指数退避</a>）、<span class="highlight-term">错误注入 LLM</span>（将异常信息作为 observation 返还，让 Agent 自行调整策略）。</p>
+                </div>
+            </div>
+        </section>
+
+        <div class="code-decoration"><span class="code-decoration-line">const result = await tool.execute({ name: 'api_call', params: validated }); // JSON Schema → validate → sandbox</span></div>
+
+        <div class="section-bridge">
+            <div class="bridge-glow"></div>
+            <div class="bridge-inner">
+                <div class="bridge-flow">
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div><div class="bridge-particle"></div>
+                    <div class="bridge-particle"></div>
+                </div>
+                <div class="bridge-arrow">↓</div>
+                <div class="bridge-label"><span class="hl">tool execution results</span> → end-to-end pipeline trace</div>
+                <div class="bridge-line"></div>
+            </div>
+        </div>
+
+        <!-- Full Pipeline Trace -->
+        <section class="trace-section" id="sec-trace">
+            <div class="trace-container">
+                <div class="deep-section-label" style="text-align:center;margin-bottom:20px">[ END-TO-END TRACE ]</div>
+                <h2 class="deep-section-title" style="text-align:center;margin-bottom:48px">完整链路追踪</h2>
+                <p style="text-align:center;font-size:13px;color:var(--text-secondary);line-height:1.8;max-width:600px;margin:0 auto 56px;">
+                    以用户请求 <strong style="color:var(--accent);">"帮我找附近评分最高的咖啡店"</strong> 为例，追踪数据在四层架构中的完整流转。
+                </p>
+                <div class="trace-flow">
+                    <div class="trace-step">
+                        <div class="trace-step-icon">P</div>
+                        <div class="trace-step-body">
+                            <div class="trace-step-layer">[ PERCEPTION · 感知层 ]</div>
+                            <div class="trace-step-title">1. 输入接收与 Tokenization</div>
+                            <div class="trace-step-desc">用户文本进入系统，BPE Tokenizer 将中文切分为 token 序列。同时系统注入本次对话的元数据——用户 ID、位置权限、当前时间戳，一并打包为上下文字段。</div>
+                            <div class="trace-step-code">Input: "帮我找附近评分最高的咖啡店"
+Tokens: ["帮","我","找","附近","评分","最高","的","咖啡","店"] → 9 tokens
+Meta: { user_id: "u_42", lat: 39.9042, lng: 116.4074 }</div>
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-step-icon">M</div>
+                        <div class="trace-step-body">
+                            <div class="trace-step-layer">[ MEMORY · 记忆层 ]</div>
+                            <div class="trace-step-title">2. 用户画像检索 + 偏好注入</div>
+                            <div class="trace-step-desc">将用户查询向量化，在向量数据库中检索：(a) 用户历史偏好——"喜欢手冲咖啡、常去独立咖啡馆"；(b) 相似查询的历史结果——上次搜索"咖啡"时用户选择了星巴克。检索结果追加到上下文。</div>
+                            <div class="trace-step-code">queryVec = embed("找附近评分最高的咖啡店")  // → 1536-dim vector
+profile  = vectorDB.search(queryVec, filter:{user:"u_42"}, topK=3)
+// → [{preference:"手冲咖啡"}, {avoid:"连锁快餐咖啡"}, {last_choice:"星巴克"}]
+context  = originalInput + profile + locationMeta</div>
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-step-icon">B</div>
+                        <div class="trace-step-body">
+                            <div class="trace-step-layer">[ BRAIN · 推理层 ]</div>
+                            <div class="trace-step-title">3. CoT 推理 + ReAct 决策</div>
+                            <div class="trace-step-desc">LLM 收到增强后的上下文，启动思维链推理：分析任务目标 → 列出可用工具 → 规划执行步骤 → 决定第一步调用地图 API。输出结构化的 function call。</div>
+                            <div class="trace-step-code">CoT Reasoning:
+[步骤1] 目标：找到附近评分最高的咖啡店
+[步骤2] 可用工具：search_nearby(type, lat, lng, radius), filter_by_rating()
+[步骤3] 计划：先搜附近咖啡店 → 按评分排序 → 取 Top-1
+[步骤4] 执行：调用 search_nearby("cafe", 39.9042, 116.4074, 3000)
+
+→ Function Call: search_nearby({type:"cafe", lat:39.90, lng:116.41, radius:3000})</div>
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-step-icon">A</div>
+                        <div class="trace-step-body">
+                            <div class="trace-step-layer">[ ACTION · 执行层 ]</div>
+                            <div class="trace-step-title">4. 工具调用与结果反馈</div>
+                            <div class="trace-step-desc">框架拦截 function call，校验参数合法性，在沙箱中调用地图 API。返回结果作为 Observation 注入上下文，触发下一轮 ReAct 推理——LLM 根据结果判断任务是否完成，或是否需要追加调用。</div>
+                            <div class="trace-step-code">// Schema Validation → 参数合法
+// 执行工具调用
+results = await mapsAPI.searchNearby("cafe", 39.9042, 116.4074, 3000)
+// → [{name:"Seesaw Coffee", rating:4.8}, {name:"M Stand", rating:4.6}, ...]
+
+// Observation 反馈给 Brain:
+filtered = sortByRating(results)[0]  // Seesaw Coffee · 4.8★ · 距离 320m
+finalResponse = "推荐 Seesaw Coffee，评分 4.8★，距您 320 米。您之前喜欢手冲，他们家的单品豆很不错。"
+
+// Memory 更新：将本次搜索结果和用户选择写入向量数据库
+vectorDB.upsert({user:"u_42", query:originalQuery, result:filtered, timestamp:now})</div>
+                        </div>
+                    </div>
+                    <div class="trace-step">
+                        <div class="trace-step-icon" style="border-style:dashed">⟳</div>
+                        <div class="trace-step-body">
+                            <div class="trace-step-layer">[ LOOP CLOSED · 闭环完成 ]</div>
+                            <div class="trace-step-title">5. 记忆沉淀 — 为下一次做准备</div>
+                            <div class="trace-step-desc">本次交互的关键数据——用户查询、推理路径、工具调用结果、最终输出——被压缩存储到长期记忆。下次用户再搜索类似内容时，Memory 层可以直接检索到相关经验，减少推理步骤。这就是 Agent 的"学习"机制。</div>
+                            <div class="trace-step-code">// 压缩存储到长期记忆
+summary = compress({
+  intent: "nearby_search",
+  query: "咖啡店", preference: "手冲咖啡",
+  result: "Seesaw Coffee · 4.8★",
+  path: "search_nearby → sort → respond"
+})
+vectorDB.upsert({embedding: embed(summary), metadata: summary, user: "u_42"})</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="flowchart-section" id="sec-flowchart">
+            <div class="flowchart-container">
+                <h2 class="flowchart-title">框架架构深度对比</h2>
+                <p class="flowchart-subtitle">每个 Agent 框架都遵循 Perception → Memory → Brain → Action 四层基础架构。真正的差异在于每层的工程化创新——选择框架，查看其在各层注入的独特能力。</p>
+                <div class="framework-selector" id="fw-selector">
+                    <button class="fw-btn selected" data-fw="base">Base Agent</button>
+                    <button class="fw-btn" data-fw="claude">Claude Code</button>
+                    <button class="fw-btn" data-fw="openclaw">OpenClaw</button>
+                    <button class="fw-btn" data-fw="langchain">LangChain</button>
+                    <button class="fw-btn" data-fw="autogpt">AutoGPT</button>
+                    <button class="fw-btn" data-fw="hermes">Hermes</button>
+                </div>
+
+                <!-- Expanded Base Pipeline -->
+                <div class="base-pipeline-expanded">
+                    <div class="bp-node-wrap">
+                        <div class="bp-shape-wrap"><div class="bp-shape circle"><span class="bp-icon">P</span></div></div>
+                        <div class="bp-info">
+                            <div class="bp-label-main">PERCEPTION</div>
+                            <div class="bp-label-cn">感知层</div>
+                            <div class="bp-desc">接收并解析外部输入——文本、图像、API数据、传感器信号。将非结构化数据转化为模型可理解的 token 序列与向量表示。</div>
+                            <div class="bp-tech-stack">
+                                <span class="bp-tech-tag">Tokenizer</span>
+                                <span class="bp-tech-tag">Embedding</span>
+                                <span class="bp-tech-tag">多模态</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bp-arrow-col"><div class="bp-arrow">→</div></div>
+                    <div class="bp-node-wrap">
+                        <div class="bp-shape-wrap"><div class="bp-shape diamond"><span class="bp-icon">M</span></div></div>
+                        <div class="bp-info">
+                            <div class="bp-label-main">MEMORY</div>
+                            <div class="bp-label-cn">记忆层</div>
+                            <div class="bp-desc">存储与检索历史信息——短期对话上下文、长期知识库、用户偏好。通过向量检索和 RAG 提供相关记忆。</div>
+                            <div class="bp-tech-stack">
+                                <span class="bp-tech-tag">Vector DB</span>
+                                <span class="bp-tech-tag">RAG</span>
+                                <span class="bp-tech-tag">KV Cache</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bp-arrow-col"><div class="bp-arrow">→</div></div>
+                    <div class="bp-node-wrap">
+                        <div class="bp-shape-wrap"><div class="bp-shape square"><span class="bp-icon">B</span></div></div>
+                        <div class="bp-info">
+                            <div class="bp-label-main">BRAIN</div>
+                            <div class="bp-label-cn">推理层</div>
+                            <div class="bp-desc">核心决策引擎——规划推理路径、分解复杂任务、选择执行策略。CoT / ReAct / ToT 等范式在此层运行。</div>
+                            <div class="bp-tech-stack">
+                                <span class="bp-tech-tag">CoT</span>
+                                <span class="bp-tech-tag">ReAct</span>
+                                <span class="bp-tech-tag">Planning</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bp-arrow-col"><div class="bp-arrow">→</div></div>
+                    <div class="bp-node-wrap">
+                        <div class="bp-shape-wrap"><div class="bp-shape triangle"></div></div>
+                        <div class="bp-info">
+                            <div class="bp-label-main">ACTION</div>
+                            <div class="bp-label-cn">执行层</div>
+                            <div class="bp-desc">将推理结果转化为具体操作——API调用、工具执行、Shell命令、文件操作。结果作为新 observation 反馈给感知层，形成闭环。</div>
+                            <div class="bp-tech-stack">
+                                <span class="bp-tech-tag">Function Call</span>
+                                <span class="bp-tech-tag">Sandbox</span>
+                                <span class="bp-tech-tag">Retry</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Addition Area -->
+                <div class="addition-area" id="addition-area"></div>
+
+                <!-- Framework Summary -->
+                <div class="fw-summary" id="fw-summary"></div>
+            </div>
+        </section>
+
+        <section class="deep-section" id="sec-paradigms">
+            <div class="deep-container" style="max-width:860px">
+                <div class="deep-section-label">[ ECOSYSTEM ]</div>
+                <h2 class="deep-section-title">工程范式对比</h2>
+                <div class="deep-subtitle">点击卡片展开，查看各框架基于基础架构的创新点</div>
+                <div class="paradigm-grid" id="paradigm-grid"></div>
+            </div>
+        </section>
+
+        <!-- Comparison Table Section -->
+        <section class="comparison-section" id="sec-comparison">
+            <div class="comparison-table-wrap">
+                <div class="deep-section-label" style="text-align:center;margin-bottom:20px">[ COMPARISON MATRIX ]</div>
+                <h2 class="deep-section-title" style="text-align:center">框架选型参考</h2>
+                <p class="flowchart-subtitle" style="margin-bottom:40px">从七个维度对比各框架的工程特性，帮助在不同场景下做出技术选型。</p>
+                <table class="comp-table">
+                    <thead>
+                        <tr>
+                            <th>维度</th>
+                            <th>Claude Code</th>
+                            <th>OpenClaw</th>
+                            <th>LangChain</th>
+                            <th>AutoGPT</th>
+                            <th>Hermes</th>
+                            <th>CrewAI</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>核心定位</td>
+                            <td class="comp-highlight">终端原生</td>
+                            <td>脑体分离·远程编排</td>
+                            <td>链式编排·模型无关</td>
+                            <td>自主式·目标驱动</td>
+                            <td>社交平台·IM原生</td>
+                            <td>多智能体·角色协作</td>
+                        </tr>
+                        <tr>
+                            <td>部署方式</td>
+                            <td>本地终端</td>
+                            <td>云端 Brain + 边缘 Body</td>
+                            <td>Python 库 / pip install</td>
+                            <td>本地 / Docker</td>
+                            <td>云端 SaaS</td>
+                            <td>Python 库 / 本地</td>
+                        </tr>
+                        <tr>
+                            <td>感知层增强</td>
+                            <td class="comp-highlight">文件变更检测<br>Shell 输出解析<br>项目结构索引</td>
+                            <td>多设备信号汇聚<br>传感器数据输入<br>协议适配层</td>
+                            <td>Prompt 模板引擎<br>多模态解析器<br>文档加载器(100+)</td>
+                            <td class="comp-highlight">网页浏览·搜索引擎<br>文件系统扫描<br>API 数据源接入</td>
+                            <td>语音识别·图片理解<br>消息流解析<br>表情/文件处理</td>
+                            <td>角色专用输入<br>任务描述解析<br>上下文注入</td>
+                        </tr>
+                        <tr>
+                            <td>记忆层方案</td>
+                            <td>文件系统直接读写<br>200K 上下文窗口</td>
+                            <td class="comp-highlight">云端向量数据库<br>多设备共享记忆<br>分层缓存策略</td>
+                            <td>统一向量存储接口<br>Chroma/Pinecone/Weaviate<br>对话缓冲记忆</td>
+                            <td class="comp-highlight">持久化向量记忆<br>跨会话复用经验<br>自动存档行为</td>
+                            <td>用户画像维护<br>跨会话关系记忆<br>结构化偏好存储</td>
+                            <td>共享任务记忆<br>Agent 间消息传递<br>执行历史追踪</td>
+                        </tr>
+                        <tr>
+                            <td>推理层策略</td>
+                            <td>System Prompt 增强<br>工具选择推理<br>ReAct 循环</td>
+                            <td class="comp-highlight">智能路由决策<br>本地/远程分流<br>多步规划</td>
+                            <td>Chain 编排引擎<br>条件/顺序/并行<br>Agent Executor</td>
+                            <td class="comp-highlight">目标递归分解<br>子任务树构建<br>动态策略调整</td>
+                            <td>意图识别路由<br>闲聊/任务/查询分流<br>上下文感知</td>
+                            <td>角色专属推理<br>任务委派逻辑<br>协作策略规划</td>
+                        </tr>
+                        <tr>
+                            <td>执行层能力</td>
+                            <td class="comp-highlight">Shell 沙箱执行<br>文件 CRUD<br>Git 操作</td>
+                            <td>代理协议远程执行<br>多设备工具调用<br>热插拔工具注册</td>
+                            <td class="comp-highlight">数百内置工具<br>Output Parser<br>自定义 Tool 定义</td>
+                            <td>浏览器自动化<br>代码执行沙箱<br>自纠错重试</td>
+                            <td>IM API 调用<br>消息收发·群管理<br>小程序交互</td>
+                            <td>角色工具体系<br>任务委派执行<br>顺序/条件流程</td>
+                        </tr>
+                        <tr>
+                            <td>典型场景</td>
+                            <td class="comp-highlight">开发辅助<br>代码重构<br>项目调试</td>
+                            <td>IoT 设备管理<br>跨平台自动化<br>远程运维</td>
+                            <td>通用应用开发<br>RAG 系统<br>数据分析管道</td>
+                            <td>自主调研<br>信息收集<br>长期任务</td>
+                            <td>智能客服<br>社区运营<br>个人助理</td>
+                            <td>复杂工作流<br>内容生产<br>多角色协作</td>
+                        </tr>
+                        <tr>
+                            <td>上手门槛</td>
+                            <td>低·安装即用</td>
+                            <td>中·需配置代理</td>
+                            <td>低·pip install</td>
+                            <td>中·需 API Key</td>
+                            <td>低·扫码即用</td>
+                            <td>低·Python脚本</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Per-Framework Detail Cards -->
+        <section class="framework-detail-section" id="sec-fw-detail">
+            <div class="fw-detail-grid" id="fw-detail-grid"></div>
+        </section>
+
+        <div class="page-coda">
+            <div class="coda-line"></div>
+            <div class="coda-text">Perception → Memory → Brain → Action</div>
+            <div class="coda-sub">Agent 架构的核心不在于某个模型的强大，而在于四层之间的精密协作。<br>理解了这个闭环，你就理解了智能体的本质。</div>
+            <div class="coda-return" onclick="document.getElementById('back-btn').click()">[ RETURN_HOME ]</div>
+            <div class="coda-glossary"><a href="glossary/tokenization.html" target="_blank">📖 Glossary · 术语详解</a></div>
+        </div>
+    </div>
+
+    <!-- Framework Overlay Page -->
+    <div id="fw-overlay">
+        <canvas class="code-rain-mini" id="code-rain-fw"></canvas>
+        <button class="fw-back-btn" onclick="closeFrameworkPage()"><span>←</span> BACK_TO_COMPARISON</button>
+        <div class="fw-overlay-inner">
+            <div class="fw-tabs" id="fw-tabs"></div>
+            <div class="fw-header" id="fw-header"></div>
+            <div class="fw-arch-flow" id="fw-arch-flow"></div>
+            <div class="fw-detail-cards" id="fw-detail-cards"></div>
+        </div>
+    </div>
+
+    <!-- Agent Builder Overlay -->
+    <div id="builder-overlay">
+        <canvas class="code-rain-mini" id="code-rain-builder"></canvas>
+        <button class="builder-back" onclick="closeBuilder()"><span>←</span> BACK</button>
+        <div class="builder-container">
+            <div class="builder-title">
+                <h2>Build Your Agent</h2>
+                <p class="builder-subtitle">从每一层选择一个模块，搭建属于你自己的 Agent 架构。全部选好后运行 Demo，观看数据在自定义管道中流动。</p>
+            </div>
+            <div class="builder-progress-bar" id="builder-progress">
+                <div class="builder-prog-seg" data-layer="0"></div>
+                <div class="builder-prog-seg" data-layer="1"></div>
+                <div class="builder-prog-seg" data-layer="2"></div>
+                <div class="builder-prog-seg" data-layer="3"></div>
+            </div>
+            <div class="builder-columns" id="builder-columns"></div>
+            <div class="builder-pipeline" id="builder-pipeline">
+                <div class="builder-pipeline-title">[ PIPELINE PREVIEW ]</div>
+                <div class="bp-preview-flow" id="bp-preview-flow">
+                    <div class="bp-preview-node"><div class="bp-preview-dot" id="bp-dot-0"></div><div class="bp-preview-label">Perception</div></div>
+                    <div class="bp-preview-arrow" id="bp-arrow-0">→</div>
+                    <div class="bp-preview-node"><div class="bp-preview-dot" id="bp-dot-1"></div><div class="bp-preview-label">Memory</div></div>
+                    <div class="bp-preview-arrow" id="bp-arrow-1">→</div>
+                    <div class="bp-preview-node"><div class="bp-preview-dot" id="bp-dot-2"></div><div class="bp-preview-label">Brain</div></div>
+                    <div class="bp-preview-arrow" id="bp-arrow-2">→</div>
+                    <div class="bp-preview-node"><div class="bp-preview-dot" id="bp-dot-3"></div><div class="bp-preview-label">Action</div></div>
+                </div>
+            </div>
+            <div class="builder-actions">
+                <button class="builder-btn" onclick="resetBuilder()">RESET</button>
+                <button class="builder-btn primary" id="builder-run-btn" disabled onclick="runBuilderDemo()">▶ RUN DEMO</button>
+            </div>
+            <div class="builder-demo" id="builder-demo">
+                <div class="demo-title">[ LIVE TRACE ]</div>
+                <div class="demo-flow" id="demo-flow"></div>
+                <div class="demo-reset" id="demo-reset" style="display:none">
+                    <button class="builder-btn" onclick="resetBuilderDemo()">↻ REPLAY</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isDetailPageActive = false;
+        let targetSectionId = null;
+        const mainContent = document.getElementById('main-content');
+        const detailPage = document.getElementById('detail-page');
+        const light = document.getElementById('ambient-light');
+        const glow = document.getElementById('quantum-glow');
+        var savedScrollTop = 0;
+        var currentTypewriterText = "// Agent Core Initialized\n// Architecture: Perception → Memory → Brain → Action\n\nAgent 并非不可解析的黑盒。\n它是一个由四层模块精密协作的智能系统。\n向下滚动，逐层解码。";
+
+        var typewriterTexts = {
+            'sec-perception': "// Initializing Perception Layer\n// Step 1: Tokenization — BPE 分词器将输入切分为 token 序列\n// Step 2: Embedding — 将语义映射到高维向量空间\n\n感知层是 Agent 的感官系统。\n它决定信息如何进入、如何编码、如何适配有限的上下文窗口。\n向下滚动，解码 Tokenization 的数学本质。",
+            'sec-memory': "// Initializing Memory Layer\n// Step 1: Embedding — 文本转为 1536 维向量\n// Step 2: ANN Search — 在高维空间中寻找最近邻居\n\n记忆层赋予 Agent 超越单次对话的能力。\n短期记忆、长期记忆、工作记忆——三层协同，对抗遗忘。\n向下滚动，理解向量检索的数学魔法。",
+            'sec-brain': "// Initializing Brain Layer\n// Step 1: Chain of Thought — 强制模型外化推理步骤\n// Step 2: Tree of Thoughts — 多路径并行的启发式搜索\n\n推理层是 Agent 的决策中枢。\n将隐式计算转为显式文本，让思考可见、可审计、可纠错。\n向下滚动，剖析思维链的底层机制。",
+            'sec-action': "// Initializing Action Layer\n// Step 1: Function Calling — LLM 输出结构化的 JSON 工具调用\n// Step 2: Schema Validation — 参数合法性校验，拦截幻觉\n\n执行层是 Agent 的手和脚。\n将推理结论转化为真实世界的操作，并承担失败的风险。\n向下滚动，了解沙箱执行与容错设计。"
+        };
+
+        // 追光
+        document.addEventListener('mousemove', (e) => {
+            light.style.left = e.clientX + 'px';
+            light.style.top = e.clientY + 'px';
+        });
+
+        // 激活视口内的所有 section
+        function activateVisibleSections() {
+            document.querySelectorAll('.scroll-section, .deep-section, .flowchart-section, .comparison-section, .framework-detail-section, .section-bridge').forEach(function(sec) {
+                if (sec.getBoundingClientRect().top < window.innerHeight * 0.75) {
+                    sec.classList.add('section-active');
+                }
+            });
+        }
+
+        // 滚动到目标章节
+        function scrollToTarget(id) {
+            var target = document.getElementById(id);
+            if (!target) return;
+            // 先激活目标之前的所有章节
+            var all = document.querySelectorAll('.scroll-section, .deep-section, .flowchart-section, .comparison-section, .framework-detail-section, .section-bridge');
+            var found = false;
+            all.forEach(function(sec) {
+                if (sec === target) found = true;
+                if (!found) sec.classList.add('section-active');
+            });
+            // 然后滚动
+            var top = target.offsetTop;
+            detailPage.scrollTo({ top: top, behavior: 'smooth' });
+            // 兜底：滚动结束后再激活一次
+            setTimeout(activateVisibleSections, 800);
+        }
+
+        // 全节点点击
+        document.querySelectorAll('.node[data-target]').forEach(function(node) {
+            node.addEventListener('click', function(e) {
+                targetSectionId = node.dataset.target;
+                glow.style.left = e.clientX + 'px';
+                glow.style.top = e.clientY + 'px';
+                glow.classList.add('glow-active');
+
+                setTimeout(function() {
+                    mainContent.style.display = 'none';
+                    detailPage.style.display = 'block';
+                    resizeCodeRainById('code-rain-detail');
+                    detailPage.scrollTop = savedScrollTop || 0;
+                    detailPage.style.opacity = 1;
+                    isDetailPageActive = true;
+                    glow.classList.remove('glow-active');
+                    glow.style.opacity = 0;
+
+                    // 设置上下文相关的打字机文本
+                    currentTypewriterText = typewriterTexts[targetSectionId] || currentTypewriterText;
+
+                    activateVisibleSections();
+                    startTypewriter();
+
+                    var delay = currentTypewriterText.length * 35 + 500;
+                    setTimeout(function() {
+                        scrollToTarget(targetSectionId);
+                        updateNavDots();
+                    }, delay);
+                }, 1200);
+            });
+        });
+
+        // 打字机（使用 currentTypewriterText）
+        function startTypewriter() {
+            var target = document.getElementById('typewriter');
+            if (!target) return;
+            target.innerHTML = '';
+            var txt = currentTypewriterText;
+            var i = 0;
+            function type() {
+                if (i < txt.length) {
+                    target.innerHTML += txt.charAt(i) === '\n' ? '<br>' : txt.charAt(i);
+                    i++;
+                    setTimeout(type, 35);
+                }
+            }
+            type();
+        }
+
+        // 滚动监听
+        detailPage.addEventListener('scroll', function() {
+            if (!isDetailPageActive) return;
+            activateVisibleSections();
+            updateNavDots();
+            applyStaggerDelays();
+        }, { passive: true });
+
+        // Canvas
+        var canvas = document.getElementById('thinking-canvas');
+        var ctx = canvas.getContext('2d');
+        function drawNetwork() {
+            if (!isDetailPageActive) { requestAnimationFrame(drawNetwork); return; }
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var brainSection = document.getElementById('sec-brain');
+            if (!brainSection) { requestAnimationFrame(drawNetwork); return; }
+            var brainRect = brainSection.getBoundingClientRect();
+            var progress = Math.max(0, Math.min(1, -brainRect.top / (brainRect.height * 0.6)));
+            var points = [{x:0.20,y:0.45},{x:0.38,y:0.35},{x:0.55,y:0.55},{x:0.72,y:0.42},{x:0.85,y:0.50}];
+            ctx.strokeStyle = 'rgba(91,122,154,0.35)'; ctx.lineWidth = 1;
+            ctx.setLineDash([5, 8]); ctx.beginPath();
+            ctx.moveTo(canvas.width*points[0].x, canvas.height*points[0].y);
+            for(var i=1;i<points.length;i++){if(progress>(i-1)/(points.length-1))ctx.lineTo(canvas.width*points[i].x,canvas.height*points[i].y);}
+            ctx.stroke();
+            points.forEach(function(p,idx){
+                if(progress>=idx/(points.length-1)||idx===0){
+                    ctx.shadowBlur=12;ctx.shadowColor='#5B7A9A';ctx.fillStyle='#5B7A9A';
+                    ctx.beginPath();ctx.arc(canvas.width*p.x,canvas.height*p.y,3.5,0,Math.PI*2);ctx.fill();
+                    ctx.shadowBlur=0;ctx.fillStyle='rgba(91,122,154,0.45)';
+                    ctx.font='9px JetBrains Mono';
+                    var labels=['OBSERVE','PARSE','REASON','PLAN','OUTPUT'];
+                    ctx.fillText(labels[idx],canvas.width*p.x-18,canvas.height*p.y-12);
+                }
+            });
+            requestAnimationFrame(drawNetwork);
+        }
+        drawNetwork();
+
+        // 返回主页（保存滚动位置）
+        function returnHome(x, y) {
+            savedScrollTop = detailPage.scrollTop;
+            glow.style.left = x + 'px'; glow.style.top = y + 'px';
+            glow.classList.add('glow-active');
+            setTimeout(function() {
+                detailPage.style.display = 'none';
+                detailPage.style.opacity = 0;
+                mainContent.style.display = 'flex';
+                isDetailPageActive = false;
+                glow.classList.remove('glow-active');
+                glow.style.opacity = 0;
+            }, 1200);
+        }
+        document.getElementById('back-btn').onclick = function(e) { returnHome(e.clientX, e.clientY); };
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var builderOverlay = document.getElementById('builder-overlay');
+                if (builderOverlay && builderOverlay.classList.contains('active')) {
+                    closeBuilder();
+                    return;
+                }
+                if (isDetailPageActive) {
+                    var fwOverlay = document.getElementById('fw-overlay');
+                    if (fwOverlay && fwOverlay.classList.contains('active')) return;
+                    returnHome(window.innerWidth/2, window.innerHeight/2);
+                }
+            }
+        });
+
+        // ========== 框架卡片数据 (按层分组) ==========
+        var frameworks = [
+            {
+                id: 'claude', name: 'Claude Code',
+                subtitle: 'Anthropic · 终端原生 Agent',
+                desc: 'Agent 直接驻留在开发者终端中，拥有文件系统、Shell、编辑器的完全访问权。绕过 API 层，通过 IPC 实现毫秒级工具调用。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: '终端输入流', text: '捕获 Shell 命令、文件变更事件、Git 操作作为感知信号，直接注入上下文' },
+                        { tag: '项目结构索引', text: '自动扫描文件树、识别语言/框架、提取依赖关系，构建项目语义图谱' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '文件系统记忆', text: '直接读写项目文件实现持久化——无外部数据库依赖，记忆即代码' },
+                        { tag: '200K 上下文', text: '超长上下文窗口保留完整会话历史和项目全貌，无需 RAG 检索' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: '动态 Prompt 注入', text: '根据当前文件和 Git 状态动态构建 System Prompt，上下文精准' },
+                        { tag: '工具选择推理', text: 'ReAct 循环中自主判断何时调用 Read/Write/Bash/Grep 等终端工具' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: 'Shell 沙箱', text: '隔离的 Shell 执行环境，捕获 stdout/stderr，支持超时和权限控制' },
+                        { tag: 'Git 原生集成', text: '直接执行 git diff/commit/branch，Agent 可自主管理版本控制' }
+                    ]}
+                ]
+            },
+            {
+                id: 'openclaw', name: 'OpenClaw',
+                subtitle: '跨平台 · 脑体分离架构',
+                desc: '将 Agent 大脑（推理服务）与身体（执行环境）解耦，通过代理协议实现一对多的远程设备协同调度。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: '多设备信号汇聚', text: '同一 Agent 接收来自手机、电脑、服务器的并行输入，统一调度' },
+                        { tag: '协议适配层', text: '支持 WebSocket/gRPC/MQTT 多种协议接入，适配不同设备通信方式' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '云端向量存储', text: '所有设备共享同一向量数据库，记忆在多设备间无缝流转' },
+                        { tag: '分层缓存', text: '热数据本地缓存 + 冷数据云端存储，平衡延迟与容量' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: '智能路由决策', text: '分析任务类型自动判断本地执行还是远程调度，优化响应延迟' },
+                        { tag: '多步规划器', text: '跨设备任务需提前规划执行序列，处理设备间依赖和时序' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: '代理远程执行', text: '通过代理协议在远程设备上执行工具，结果加密回传' },
+                        { tag: '热插拔工具注册', text: '运行时动态注册/卸载工具，第三方可贡献自定义工具插件' }
+                    ]}
+                ]
+            },
+            {
+                id: 'langchain', name: 'LangChain',
+                subtitle: '开源 · 链式编排框架',
+                desc: '将 LLM 调用、工具使用、记忆检索封装为可组合的 Chain 抽象。模型无关的设计使得切换底层 LLM 无需改动业务代码。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: 'Prompt 模板引擎', text: '支持变量注入、Few-Shot 示例、ChatML 格式的结构化模板系统' },
+                        { tag: '文档加载器(100+)', text: '内置 PDF/HTML/CSV/Notion 等上百种文档解析器，开箱即用' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '统一向量接口', text: 'Chroma/Pinecone/Weaviate 等向量库通过同一接口调用，切换零成本' },
+                        { tag: '对话缓冲记忆', text: 'ConversationBufferMemory 保留完整对话，SummaryMemory 自动压缩历史' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: 'Chain 编排引擎', text: '支持 Sequential/ Conditional/ Parallel Chain，可视化构建推理管道' },
+                        { tag: 'Agent Executor', text: '封装 ReAct 循环，自动管理 Thought-Action-Observation 的迭代' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: 'Output Parser', text: '自动将 LLM 原始输出解析为 JSON/Pydantic/XML 等结构化数据' },
+                        { tag: 'Tool 抽象层', text: '用 @tool 装饰器一行定义工具，自动生成 JSON Schema 供 LLM 调用' }
+                    ]}
+                ]
+            },
+            {
+                id: 'autogpt', name: 'AutoGPT',
+                subtitle: '自主式 · 目标驱动 Agent',
+                desc: '只需给定最终目标，Agent 自主分解子任务、搜索信息、执行操作。失败时自动调整策略，追求端到端的完全自主。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: 'Web 浏览器', text: '内置 headless 浏览器和搜索引擎，Agent 可自主从互联网获取最新信息' },
+                        { tag: '文件系统扫描', text: '自动扫描本地文件、识别相关文档、提取关键信息作为输入' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '持久化向量记忆', text: '所有行为自动写入向量数据库，跨会话复用经验，实现持续学习' },
+                        { tag: '分级记忆管理', text: '短期工作记忆 + 长期知识库 + 外部检索，三层记忆协同' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: '目标递归分解', text: '复杂目标自动拆解为子任务树，每步先规划再执行，动态调整' },
+                        { tag: '自反思循环', text: '执行结果与预期对比，偏差过大时自动回溯、调整策略、重试' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: '代码执行沙箱', text: '隔离环境中执行 Python/Shell 脚本，限制网络和文件访问权限' },
+                        { tag: '自纠错重试', text: '工具调用失败时自行分析错误原因，调整参数后自动重试' }
+                    ]}
+                ]
+            },
+            {
+                id: 'hermes', name: 'Hermes',
+                subtitle: '微信生态 · 社交平台 Agent',
+                desc: '直接运行在微信/钉钉等 IM 平台内，具备多模态消息处理和跨会话关系记忆。让 Agent 成为社群里真正的成员。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: '多模态输入', text: '同时处理文本、语音（ASR）、图片（CV）、文件，不限于纯文本对话' },
+                        { tag: '消息流解析', text: '解析微信/钉钉消息协议——文字、表情、@提及、引用、红包等结构化消息' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '用户画像维护', text: '跨会话追踪用户偏好、习惯、关系网络，构建长期用户画像' },
+                        { tag: '关系记忆图谱', text: '记住谁是谁的朋友、谁擅长什么话题，群聊中智能关联上下文' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: '意图识别路由', text: '区分闲聊/任务执行/信息查询/群管理，不同意图走不同处理管道' },
+                        { tag: '多轮对话管理', text: 'IM 场景下消息交错到达，需精确的上下文关联和指代消解' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: 'IM API 原生调用', text: '调用微信/钉钉 API 发送图文、管理群成员、操作小程序' },
+                        { tag: '定时任务调度', text: '支持定时消息、生日提醒、周期性报告等时间驱动的自动化' }
+                    ]}
+                ]
+            },
+            {
+                id: 'crewai', name: 'CrewAI',
+                subtitle: '多智能体 · 角色协作框架',
+                desc: '定义不同角色的 Agent 组成 Crew 团队，通过任务委派和角色分工协作完成复杂工作流。每个 Agent 有专属工具和人格。',
+                layers: [
+                    { name: 'PERCEPTION 感知', items: [
+                        { tag: '角色专属输入', text: '每个 Agent 接收与其角色相关的信息子集，避免信息过载' },
+                        { tag: '任务描述解析', text: '从自然语言任务描述中提取子任务、依赖关系、角色分配' }
+                    ]},
+                    { name: 'MEMORY 记忆', items: [
+                        { tag: '共享任务记忆', text: '团队共享任务状态板，所有 Agent 可见当前进度和中间结果' },
+                        { tag: '执行历史追踪', text: '记录每个 Agent 的决策序列，支持事后审计和流程优化' }
+                    ]},
+                    { name: 'BRAIN 推理', items: [
+                        { tag: '角色系统提示', text: '每个角色有独特的 Backstory 和 Goal，深度影响推理风格和决策倾向' },
+                        { tag: '协作策略规划', text: '分析任务依赖关系，决定顺序执行还是并行委派，分配最优 Agent' }
+                    ]},
+                    { name: 'ACTION 执行', items: [
+                        { tag: '角色工具体系', text: '研究员有搜索工具，写手有文档工具——各角色工具权限精确控制' },
+                        { tag: '任务委派协议', text: 'Agent 之间通过结构化消息委派子任务，支持层级式或对等式协作' }
+                    ]}
+                ]
+            }
+        ];
+
+        // 渲染框架卡片（按层分组展示）
+        function renderCards() {
+            var grid = document.getElementById('paradigm-grid');
+            if (!grid) return;
+            var html = '';
+            frameworks.forEach(function(fw) {
+                html += '<div class="framework-card" data-fw="' + fw.id + '" onclick="toggleCard(this)">';
+                html += '<h3>' + fw.name + '</h3>';
+                html += '<p class="card-subtitle">' + fw.subtitle + '</p>';
+                html += '<p style="font-size:12px;color:var(--text-secondary);line-height:1.7;margin:0 0 12px 0;">' + fw.desc + '</p>';
+                html += '<div class="card-expand-hint">[ 点击展开 8 项创新 ]</div>';
+                html += '<div class="framework-innovations">';
+                fw.layers.forEach(function(layer) {
+                    html += '<div style="font-family:\'JetBrains Mono\',monospace;font-size:9px;color:var(--accent);letter-spacing:2px;margin:8px 0 4px;opacity:0.7">' + layer.name + '</div>';
+                    layer.items.forEach(function(item) {
+                        html += '<div class="innovation-item">';
+                        html += '<span class="innovation-tag">' + item.tag + '</span>';
+                        html += '<span>' + item.text + '</span>';
+                        html += '</div>';
+                    });
+                });
+                html += '</div></div>';
+            });
+            grid.innerHTML = html;
+        }
+
+        // 卡片展开/收起
+        function toggleCard(card) {
+            var fwId = card.dataset.fw;
+            // 同步流程图按钮
+            document.querySelectorAll('.fw-btn').forEach(function(b) { b.classList.remove('selected'); });
+            var btn = document.querySelector('.fw-btn[data-fw="' + fwId + '"]');
+            if (btn) btn.classList.add('selected');
+            renderAdditions(fwId);
+            // 脉冲提示
+            var fc = document.getElementById('sec-flowchart');
+            if (fc) {
+                fc.classList.add('pulse-hint');
+                setTimeout(function() { fc.classList.remove('pulse-hint'); }, 2400);
+            }
+            // 打开框架专属详情页
+            openFrameworkPage(fwId);
+        }
+        renderCards();
+
+        // ========== 流程图详细数据（每框架每层 2-3 项创新） ==========
+        var fwDetails = {
+            base: {
+                summary: '',
+                perception: [], memory: [], brain: [], action: []
+            },
+            claude: {
+                summary: 'Claude Code 将 Agent 深度嵌入开发者终端。感知层新增文件系统事件监听，记忆层直接利用文件系统，推理层动态注入项目上下文，执行层拥有完整的 Shell 和文件操作权限。',
+                perception: [
+                    { name: '终端命令输入', desc: '捕获用户在终端中的每一次操作作为感知信号，而非仅响应文本输入', code: 'onShellCmd("npm test") → context' },
+                    { name: '文件变更检测', desc: '监听文件系统的 create/ modify/ delete 事件，自动感知项目变化', code: 'fs.watch("./src", onChange)' },
+                    { name: 'Git 状态感知', desc: '读取 git status/diff 结果，理解当前分支、变更范围、冲突情况', code: 'exec("git diff --stat") → parse' }
+                ],
+                memory: [
+                    { name: '文件即记忆', desc: '直接读写项目文件作为持久化记忆——MEMORY.md、TODO.md 等约定文件', code: 'fs.writeFile("MEMORY.md", summary)' },
+                    { name: '200K 上下文窗口', desc: '超长上下文可容纳完整项目代码和会话历史，无需 RAG 分段检索', code: 'context_window: 200,000 tokens' }
+                ],
+                brain: [
+                    { name: 'System Prompt 增强', desc: '动态注入项目结构、编码规范、当前文件内容到推理上下文', code: 'system += tree(project) + styleGuide' },
+                    { name: '工具选择推理', desc: 'Thought → Action 循环中自主判断应调用 Read/Write/Bash/Grep', code: 'Thought: need to find usage\nAction: grep("fetchData")' }
+                ],
+                action: [
+                    { name: 'Shell 沙箱执行', desc: '隔离的 Shell 环境，命令需经权限检查，支持超时中断', code: 'exec("npm run build", {timeout:30s})' },
+                    { name: '文件 CRUD', desc: '全功能的文件读写、搜索替换、批量操作能力', code: 'fs.readFile / fs.writeFile / grep' },
+                    { name: 'Git 原生操作', desc: '直接执行 git commit/ branch/ merge，Agent 可自主管理版本', code: 'exec("git add -A && git commit -m ...")' }
+                ]
+            },
+            openclaw: {
+                summary: 'OpenClaw 的创新在于脑体分离——Agent 推理在云端，工具执行在边缘设备。感知层汇聚多设备信号，记忆层云端共享，推理层智能路由，执行层通过代理协议远程操作。',
+                perception: [
+                    { name: '多设备输入汇聚', desc: '同时接收来自手机、电脑、IoT 设备的并行信号流', code: 'devices.map(d => d.poll()) → merge' },
+                    { name: '协议适配层', desc: 'WebSocket/gRPC/MQTT 统一适配，屏蔽底层通信差异', code: 'adapter = ProtocolAdapter(ws|grpc|mqtt)' },
+                    { name: '传感器数据接入', desc: '摄像头、麦克风、GPS——物理世界的信号转化为 Agent 感知', code: 'sensor.onData(cameraFeed) → embed' }
+                ],
+                memory: [
+                    { name: '云端向量数据库', desc: '所有设备共享同一向量库，检索结果跨设备一致', code: 'Pinecone.upsert(embedding, metadata)' },
+                    { name: '分层缓存策略', desc: 'L1 本地热缓存（ms级）+ L2 云端全量（100ms级）', code: 'cache.get(key) || cloud.query(key)' }
+                ],
+                brain: [
+                    { name: '智能路由决策', desc: '分析任务复杂度、数据敏感度、设备能力，决定本地/远程执行', code: 'router.decide(task) → local|edge-1|edge-2' },
+                    { name: '跨设备规划', desc: '当任务需要多设备协同时，预先生成带依赖的执行序列', code: 'plan = [{dev:phone,op:takePhoto},{dev:server,op:analyze}]' }
+                ],
+                action: [
+                    { name: '代理远程执行', desc: '通过加密代理通道在远程设备上执行工具，结果安全回传', code: 'proxy.exec(deviceId, tool, params)' },
+                    { name: '热插拔工具系统', desc: '运行时注册/卸载工具，支持第三方开发者贡献自定义插件', code: 'registry.register("myTool", handler)' }
+                ]
+            },
+            langchain: {
+                summary: 'LangChain 的核心贡献是 Chain 抽象——将 LLM 调用的各个环节封装为可组合的链条。感知层提供模板引擎，记忆层统一向量接口，推理层编排引擎，执行层自动解析输出。',
+                perception: [
+                    { name: 'Prompt 模板引擎', desc: '支持变量注入、Few-Shot 示例、ChatML 格式的结构化模板', code: 'PromptTemplate("分析{code}", {code})' },
+                    { name: '文档加载器生态', desc: '内置 100+ 文档加载器：PDF/HTML/CSV/Notion/Markdown', code: 'PDFLoader("paper.pdf").load()' }
+                ],
+                memory: [
+                    { name: '统一向量存储接口', desc: 'Chroma/Pinecone/Weaviate 对开发者暴露同一 API', code: 'vectorstore = Chroma() // or Pinecone() — same API' },
+                    { name: '对话记忆管理', desc: 'Buffer/Summary/Token-window 多种记忆策略按需选择', code: 'memory = ConversationSummaryMemory(llm)' }
+                ],
+                brain: [
+                    { name: 'Chain 编排引擎', desc: 'Sequential → Conditional → Parallel Chain，灵活构建推理管道', code: 'chain = prompt | llm | parser | tool' },
+                    { name: 'Agent Executor', desc: '封装完整的 ReAct 循环，自动管理 T-A-O 迭代和终止条件', code: 'AgentExecutor(agent, tools, maxIter=10)' }
+                ],
+                action: [
+                    { name: 'Output Parser 自动解析', desc: 'LLM 原始文本 → JSON/Pydantic/XML，一步到位', code: 'parser = PydanticOutputParser(MySchema)' },
+                    { name: 'Tool 装饰器定义', desc: '一行 @tool 装饰器将任意函数变为 LLM 可调用工具', code: '@tool\ndef search(query: str) → str:' }
+                ]
+            },
+            autogpt: {
+                summary: 'AutoGPT 追求完全自主——从最终目标出发，自行分解子任务、搜索信息、执行操作。其核心竞争力在于目标递归分解和自反思循环。',
+                perception: [
+                    { name: 'Web 浏览与搜索', desc: '内置 headless 浏览器 + 搜索引擎，Agent 自主上网获取信息', code: 'browser.goto("https://...") → extract' },
+                    { name: '文件系统探索', desc: '自动扫描本地文件结构，识别相关文档和数据源', code: 'glob("**/*.{py,md,json}") → index' }
+                ],
+                memory: [
+                    { name: '持久化向量记忆', desc: '所有行为自动存档到向量数据库，跨会话复用历史经验', code: 'memory.add(observation, embedding)' },
+                    { name: '分级记忆架构', desc: '工作记忆（当前任务）+ 长期记忆（向量DB）+ 外部检索（Web）', code: 'WM ∪ LTM ∪ WebSearch → context' }
+                ],
+                brain: [
+                    { name: '目标递归分解', desc: '"写一篇市场分析报告" → 拆解为 8 个子任务，形成执行树', code: 'decompose(goal) → [research, draft, review, ...]' },
+                    { name: '自反思循环', desc: '执行结果 vs 预期对比，偏差过大自动回溯调整', code: 'if score < threshold: backtrack & revise' }
+                ],
+                action: [
+                    { name: '代码执行沙箱', desc: '隔离的 Python/Shell 沙箱，控制文件、网络、计算资源', code: 'sandbox.run("analysis.py", limits={mem:512mb})' },
+                    { name: '自纠错重试', desc: '工具失败时分析 stderr，调整参数后自动重试', code: 'retry with exponential backoff (max 3)' }
+                ]
+            },
+            hermes: {
+                summary: 'Hermes 将 Agent 带入社交平台。感知层处理多模态消息，记忆层维护用户画像和关系图谱，推理层做意图路由，执行层调用 IM 平台原生 API。',
+                perception: [
+                    { name: '多模态消息处理', desc: '同时处理文本/语音(ASR)/图片(CV)/视频/文件等多种消息类型', code: 'pipeline = [ASR, OCR, CLIP, text] → fusion' },
+                    { name: 'IM 消息协议解析', desc: '解析 @提及、引用、表情、红包等平台特有的结构化消息', code: 'parseMsg(wxMsg) → {type, content, mentions}' }
+                ],
+                memory: [
+                    { name: '用户画像系统', desc: '跨会话积累用户偏好、习惯、知识背景，千人千面', code: 'profile.update({topic: "AI", level: "expert"})' },
+                    { name: '社交关系图谱', desc: '记住群聊中的社交关系——谁和谁是同事、谁擅长什么', code: 'graph.addEdge(userA, userB, "colleague")' }
+                ],
+                brain: [
+                    { name: '意图分类路由', desc: '闲聊 → 闲聊模型 / 任务 → Agent 管道 / 查询 → RAG 检索', code: 'classifier(msg) → chitchat|task|search' },
+                    { name: '多轮上下文关联', desc: 'IM 消息交错到达，需精确的指代消解和上下文拼接', code: 'coref.resolve("它", prevMessages) → document' }
+                ],
+                action: [
+                    { name: 'IM API 原生调用', desc: '发送图文消息、管理群成员、操作小程序——全平台 API 覆盖', code: 'wx.sendMsg(chatId, {type:"text", content})' },
+                    { name: '定时自动化', desc: '定时消息、周期报告、生日提醒——时间驱动的 Agent 行为', code: 'cron.schedule("0 9 * * *", dailyReport)' }
+                ]
+            },
+            crewai: {
+                summary: 'CrewAI 定义多 Agent 协作模式。每个 Agent 有专属角色、工具和人格，通过任务委派协议组成 Crew 团队完成复杂工作流。',
+                perception: [
+                    { name: '角色过滤输入', desc: '每个 Agent 只接收与角色相关的信息子集，避免信息过载', code: 'filterForRole(allInputs, "researcher")' },
+                    { name: '任务语义解析', desc: '从自然语言任务中提取子任务、角色分配、依赖关系', code: 'parse("研究员查资料后写手写报告") → DAG' }
+                ],
+                memory: [
+                    { name: '共享任务状态', desc: '所有 Agent 可见同一块任务板，实时同步进度和中间产出', code: 'taskBoard.update({agent:"writer", status:"done"})' },
+                    { name: '执行审计日志', desc: '完整记录每个 Agent 的决策序列，支持回溯和流程优化', code: 'auditLog.record(agentId, thought, action, result)' }
+                ],
+                brain: [
+                    { name: '角色人格系统', desc: 'Backstory + Goal + Persona 深度影响推理风格和决策倾向', code: 'Agent(role="researcher", backstory="...", goal="...")' },
+                    { name: '协作编排引擎', desc: '分析任务 DAG，决定顺序执行还是并行委派', code: 'orchestrator.plan(taskDAG) → executionOrder' }
+                ],
+                action: [
+                    { name: '角色工具绑定', desc: '研究员有搜索/爬虫工具，写手有文档/翻译工具——精确权限', code: 'agent.addTools([searchTool, crawlTool])' },
+                    { name: '任务委派协议', desc: '结构化消息格式实现 Agent 间任务委派，支持接受/拒绝/协商', code: 'delegate(from:PM, to:Writer, task:{...})' }
+                ]
+            }
+        };
+
+        // 渲染流程图添加区（4 列：Perception / Memory / Brain / Action）
+        function renderAdditions(fwId) {
+            var area = document.getElementById('addition-area');
+            if (!area) return;
+            var data = fwDetails[fwId] || fwDetails['base'];
+            var layers = ['perception', 'memory', 'brain', 'action'];
+            var html = '';
+            layers.forEach(function(layerKey) {
+                html += '<div class="addition-col">';
+                var items = data[layerKey] || [];
+                items.forEach(function(item, i) {
+                    html += '<div class="addition-card" style="animation-delay:' + (i * 0.08) + 's">';
+                    html += '<div class="add-name">+ ' + item.name + '</div>';
+                    html += '<div class="add-desc">' + item.desc + '</div>';
+                    if (item.code) {
+                        html += '<div class="add-code">' + item.code + '</div>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+                if (layerKey !== 'action') {
+                    html += '<div class="addition-col-spacer"></div>';
+                }
+            });
+            area.innerHTML = html;
+
+            // 渲染摘要
+            renderSummary(fwId);
+        }
+
+        // 渲染框架摘要面板
+        function renderSummary(fwId) {
+            var summary = document.getElementById('fw-summary');
+            if (!summary) return;
+            var data = fwDetails[fwId];
+            if (!data || fwId === 'base' || !data.summary) {
+                summary.classList.remove('visible');
+                return;
+            }
+            summary.classList.add('visible');
+            var fw = frameworks.find(function(f) { return f.id === fwId; });
+            if (!fw) { summary.classList.remove('visible'); return; }
+            var html = '<div class="fw-summary-title">' + fw.name + ' · 架构创新总览</div>';
+            html += '<p style="font-size:12px;color:var(--text-secondary);line-height:1.8;margin:0 0 20px 0;">' + data.summary + '</p>';
+            html += '<div class="fw-summary-grid">';
+            html += '<div class="fw-summary-item"><strong>定位</strong>' + fw.subtitle + '</div>';
+            html += '<div class="fw-summary-item"><strong>描述</strong>' + fw.desc + '</div>';
+            var totalItems = 0;
+            ['perception','memory','brain','action'].forEach(function(k) {
+                totalItems += (data[k] || []).length;
+            });
+            html += '<div class="fw-summary-item"><strong>创新点</strong>共 ' + totalItems + ' 项工程增强，覆盖全部四层架构</div>';
+            html += '</div>';
+            summary.innerHTML = html;
+        }
+
+        // 渲染框架详情网格（独立 section）
+        function renderFwDetailGrid() {
+            var grid = document.getElementById('fw-detail-grid');
+            if (!grid) return;
+            var html = '';
+            frameworks.forEach(function(fw) {
+                html += '<div class="fw-detail-card">';
+                html += '<div class="fw-detail-name">' + fw.name + '</div>';
+                html += '<div class="fw-detail-sub">' + fw.subtitle + '</div>';
+                fw.layers.forEach(function(layer) {
+                    html += '<div class="fw-detail-layer">';
+                    html += '<div class="fw-layer-name">[' + layer.name + ']</div>';
+                    html += '<ul class="fw-layer-items">';
+                    layer.items.forEach(function(item) {
+                        html += '<li><strong>' + item.tag + '</strong> — ' + item.text + '</li>';
+                    });
+                    html += '</ul></div>';
+                });
+                html += '</div>';
+            });
+            grid.innerHTML = html;
+        }
+        renderFwDetailGrid();
+
+        // 流程图按钮切换
+        document.querySelectorAll('.fw-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.fw-btn').forEach(function(b) { b.classList.remove('selected'); });
+                btn.classList.add('selected');
+                renderAdditions(btn.dataset.fw);
+            });
+        });
+
+        // 默认显示 Base Agent (空)
+        renderAdditions('base');
+
+        // ========== Section Navigation Dots ==========
+        function updateNavDots() {
+            var dots = document.querySelectorAll('.section-dot');
+            var sections = [];
+            dots.forEach(function(dot) {
+                var sec = document.getElementById(dot.dataset.target);
+                if (sec) sections.push({ dot: dot, sec: sec });
+            });
+            if (sections.length === 0) return;
+            // 找到当前视口中最靠近顶部的 section
+            var active = sections[0];
+            sections.forEach(function(item) {
+                if (item.sec.getBoundingClientRect().top < window.innerHeight * 0.5) {
+                    active = item;
+                }
+            });
+            dots.forEach(function(d) { d.classList.remove('active'); });
+            active.dot.classList.add('active');
+        }
+
+        // 导航点点击
+        document.querySelectorAll('.section-dot').forEach(function(dot) {
+            dot.addEventListener('click', function() {
+                var targetId = dot.dataset.target;
+                var target = document.getElementById(targetId);
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    document.querySelectorAll('.section-dot').forEach(function(d) { d.classList.remove('active'); });
+                    dot.classList.add('active');
+                }
+            });
+        });
+
+        // ========== ReAct Interactive Step Demo (supports replay) ==========
+        var reactStep = 0;
+        var reactDone = false;
+        function resetReAct() {
+            reactStep = 0;
+            reactDone = false;
+            // 隐藏所有步骤卡片，只显示 step-0
+            document.querySelectorAll('.react-step-card').forEach(function(c) { c.classList.remove('visible'); });
+            var step0 = document.getElementById('react-step-0');
+            if (step0) step0.classList.add('visible');
+            // 重置进度点
+            document.querySelectorAll('.react-progress-dot').forEach(function(d) {
+                d.classList.remove('current', 'done');
+                if (d.dataset.step === '0') d.classList.add('current');
+            });
+            document.querySelectorAll('.react-progress-line').forEach(function(l) { l.classList.remove('done'); });
+            // 重置提示
+            document.getElementById('react-advance-hint').textContent = '[ 点击推进下一步 ]';
+            document.getElementById('react-advance-hint').style.color = '#444';
+            document.getElementById('react-advance-hint').style.cursor = 'pointer';
+        }
+        function advanceReAct() {
+            if (reactDone) {
+                resetReAct();
+                return;
+            }
+            // 更新步骤卡片
+            var currentCard = document.getElementById('react-step-' + reactStep);
+            if (currentCard) currentCard.classList.remove('visible');
+            reactStep++;
+            if (reactStep >= 3) {
+                reactDone = true;
+                document.getElementById('react-advance-hint').textContent = '[ 循环完成 · 点击重置 ]';
+                document.getElementById('react-advance-hint').style.color = 'var(--accent)';
+                document.getElementById('react-advance-hint').style.cursor = 'pointer';
+            }
+            var nextCard = document.getElementById('react-step-' + reactStep);
+            if (nextCard) nextCard.classList.add('visible');
+            // 更新进度点
+            document.querySelectorAll('.react-progress-dot').forEach(function(d) {
+                var s = parseInt(d.dataset.step);
+                d.classList.remove('current', 'done');
+                if (s < reactStep) d.classList.add('done');
+                if (s === reactStep) d.classList.add('current');
+            });
+            document.querySelectorAll('.react-progress-line').forEach(function(l, i) {
+                if (i < reactStep) l.classList.add('done');
+                else l.classList.remove('done');
+            });
+            if (!reactDone) {
+                document.getElementById('react-advance-hint').textContent = '[ 点击推进下一步 ]';
+            }
+        }
+
+        // ReAct 进度点也可点击跳转
+        document.querySelectorAll('.react-progress-dot').forEach(function(dot) {
+            dot.addEventListener('click', function() {
+                var target = parseInt(dot.dataset.step);
+                if (target === reactStep) return;
+                while (reactStep < target && !reactDone) advanceReAct();
+            });
+        });
+
+        // ========== Staggered Reveal ==========
+        function applyStaggerDelays() {
+            document.querySelectorAll('.deep-section.section-active').forEach(function(sec) {
+                var children = sec.querySelectorAll('.concept-block, .code-snippet, .key-insight, .concept-divider');
+                children.forEach(function(child, i) {
+                    child.style.setProperty('--stagger-delay', (i * 100) + 'ms');
+                });
+            });
+        }
+
+        // ========== Keyboard Navigation ==========
+        document.addEventListener('keydown', function(e) {
+            if (!isDetailPageActive) return;
+            if (e.key === 'Escape') return; // handled elsewhere
+            if (e.key === 'j' || e.key === 'J') {
+                e.preventDefault();
+                detailPage.scrollBy({ top: window.innerHeight * 0.8, behavior: 'smooth' });
+            }
+            if (e.key === 'k' || e.key === 'K') {
+                e.preventDefault();
+                detailPage.scrollBy({ top: -window.innerHeight * 0.8, behavior: 'smooth' });
+            }
+        });
+
+        // ========== Framework Overlay Page ==========
+        var fwPageData = {
+            claude: {
+                name: 'Claude Code', logo: 'CC', logoClass: 'claude', color: '#e94560',
+                tagline: 'Anthropic · Terminal-Native Agent',
+                desc: 'Agent 直接驻留在开发者终端中，拥有文件系统、Shell、编辑器的完全访问权。绕过 API 层，通过 IPC 实现毫秒级工具调用。',
+                flow: {
+                    input: 'Shell Commands · File Events · Git Hooks · User Chat',
+                    perception: ['Terminal Input Stream', 'File Change Watcher', 'Project Tree Indexer'],
+                    memory: ['File System as Database', '200K Context Window', 'Session MEMORY.md'],
+                    brain: ['Dynamic System Prompt Injection', 'Tool Selection Reasoning', 'ReAct Decision Loop'],
+                    action: ['Shell Sandbox Execution', 'File Read/Write/Grep', 'Git Commit/Branch/Diff'],
+                    output: 'Modified Files · Shell Output · Git History · Agent Response'
+                }
+            },
+            openclaw: {
+                name: 'OpenClaw', logo: 'OC', logoClass: 'openclaw', color: '#7b2ff7',
+                tagline: 'Brain-Body Separation · Multi-Device Orchestration',
+                desc: '将 Agent 大脑（推理）与身体（执行）解耦，通过代理协议实现一对多的远程设备协同调度。',
+                flow: {
+                    input: 'Phone Sensors · Desktop Apps · IoT Devices · Cloud APIs',
+                    perception: ['Multi-Device Signal Hub', 'Protocol Adapter (WS/gRPC/MQTT)', 'Sensor Data Fusion'],
+                    memory: ['Cloud Vector Database', 'L1 Hot Cache + L2 Cold Store', 'Cross-Device Shared Memory'],
+                    brain: ['Intelligent Routing Decision', 'Cross-Device Task Planner', 'Latency-Aware Scheduler'],
+                    action: ['Proxy Remote Execution', 'Hot-Swap Tool Registry', 'Encrypted Result Channel'],
+                    output: 'Device Actions · API Responses · Sensor Readings · Status Reports'
+                }
+            },
+            langchain: {
+                name: 'LangChain', logo: 'LC', logoClass: 'langchain', color: '#2ecc71',
+                tagline: 'Open Source · Chain Orchestration Framework',
+                desc: '将 LLM 调用、工具使用、记忆检索封装为可组合的 Chain 抽象。模型无关设计使得切换 LLM 零成本。',
+                flow: {
+                    input: 'Documents (PDF/HTML/CSV) · APIs · Databases · User Prompts',
+                    perception: ['Prompt Template Engine', '100+ Document Loaders', 'Multi-Modal Parsers'],
+                    memory: ['Unified VectorStore Interface', 'Conversation Buffer/Summary Memory', 'Entity Memory'],
+                    brain: ['Chain Orchestration Engine', 'Agent Executor (ReAct)', 'Conditional/Parallel Routing'],
+                    action: ['Output Parser (JSON/Pydantic)', '@tool Decorator System', 'Structured Tool Calling'],
+                    output: 'Structured Data · API Responses · Generated Text · Analysis Reports'
+                }
+            },
+            autogpt: {
+                name: 'AutoGPT', logo: 'AG', logoClass: 'autogpt', color: '#f39c12',
+                tagline: 'Autonomous · Goal-Driven Agent',
+                desc: '只需给定最终目标，Agent 自主分解子任务、搜索信息、执行操作。追求端到端的完全自主。',
+                flow: {
+                    input: 'User Goal · Web Pages · Search Results · Local Files',
+                    perception: ['Headless Web Browser', 'Search Engine Integration', 'File System Scanner'],
+                    memory: ['Persistent Vector Memory', 'Working + Long-Term + Web Memory', 'Experience Replay'],
+                    brain: ['Recursive Goal Decomposition', 'Self-Reflection Loop', 'Dynamic Strategy Adjustment'],
+                    action: ['Code Execution Sandbox', 'Self-Correction Retry', 'Browser Automation'],
+                    output: 'Completed Goal Report · Research Findings · Generated Code · Action Log'
+                }
+            },
+            hermes: {
+                name: 'Hermes', logo: 'HM', logoClass: 'hermes', color: '#9b59b6',
+                tagline: 'WeChat Ecosystem · Social Platform Agent',
+                desc: '直接运行在微信/钉钉等 IM 平台内，具备多模态消息处理和跨会话关系记忆。',
+                flow: {
+                    input: 'Text Messages · Voice (ASR) · Images (CV) · Files · Emoji',
+                    perception: ['Multi-Modal Message Pipeline', 'IM Protocol Parser', '@Mention / Quote Handler'],
+                    memory: ['User Profile System', 'Social Relationship Graph', 'Cross-Session Context'],
+                    brain: ['Intent Classification Router', 'Multi-Turn Coreference Resolution', 'Context-Aware Response'],
+                    action: ['IM Native API (Send/Manage)', 'Scheduled Task Cron', 'Mini-Program Interaction'],
+                    output: 'Chat Messages · Media Responses · Scheduled Notifications · Group Management'
+                }
+            },
+            crewai: {
+                name: 'CrewAI', logo: 'CA', logoClass: 'crewai', color: '#1abc9c',
+                tagline: 'Multi-Agent · Role-Based Collaboration',
+                desc: '定义不同角色的 Agent 组成 Crew 团队，通过任务委派协议协作完成复杂工作流。',
+                flow: {
+                    input: 'Task Description · Role Definitions · Tools & Resources · Context Docs',
+                    perception: ['Role-Filtered Input Dispatch', 'Task Semantic Parser', 'Dependency Graph Builder'],
+                    memory: ['Shared Task Board', 'Agent Execution Audit Log', 'Inter-Agent Message Queue'],
+                    brain: ['Role Persona System (Backstory+Goal)', 'Collaboration Orchestrator', 'Parallel/Sequential Planner'],
+                    action: ['Role-Specific Tool Binding', 'Task Delegation Protocol', 'Hierarchical/Peer Execution'],
+                    output: 'Completed Workflow · Multi-Agent Report · Delegation Chain · Final Deliverable'
+                }
+            }
+        };
+
+        function openFrameworkPage(fwId) {
+            var data = fwPageData[fwId];
+            if (!data) return;
+            var overlay = document.getElementById('fw-overlay');
+            if (!overlay) return;
+
+            // 渲染标签页
+            renderFwTabs(fwId);
+            // 渲染头部
+            renderFwHeader(data);
+            // 渲染架构流程图
+            renderFwArchFlow(data);
+            // 渲染详情卡片
+            renderFwDetailCards(fwId);
+
+            overlay.style.display = 'block';
+            resizeCodeRainById('code-rain-fw');
+            overlay.scrollTop = 0;
+            setTimeout(function() { overlay.classList.add('active'); }, 50);
+        }
+
+        function closeFrameworkPage() {
+            var overlay = document.getElementById('fw-overlay');
+            if (!overlay) return;
+            overlay.classList.remove('active');
+            setTimeout(function() { overlay.style.display = 'none'; }, 400);
+        }
+
+        function renderFwTabs(currentId) {
+            var tabs = document.getElementById('fw-tabs');
+            if (!tabs) return;
+            var fwIds = ['claude', 'openclaw', 'langchain', 'autogpt', 'hermes', 'crewai'];
+            var names = ['Claude Code', 'OpenClaw', 'LangChain', 'AutoGPT', 'Hermes', 'CrewAI'];
+            var html = '';
+            fwIds.forEach(function(id, i) {
+                html += '<button class="fw-tab' + (id === currentId ? ' active' : '') + '" onclick="openFrameworkPage(\'' + id + '\')">' + names[i] + '</button>';
+            });
+            tabs.innerHTML = html;
+        }
+
+        function renderFwHeader(data) {
+            var header = document.getElementById('fw-header');
+            if (!header) return;
+            header.innerHTML = '<div class="fw-logo-badge ' + data.logoClass + '">' + data.logo + '</div>' +
+                '<div class="fw-header-info">' +
+                '<h1>' + data.name + '</h1>' +
+                '<div class="fw-tagline">' + data.tagline + '</div>' +
+                '<div class="fw-desc">' + data.desc + '</div>' +
+                '</div>';
+        }
+
+        function renderFwArchFlow(data) {
+            var flow = document.getElementById('fw-arch-flow');
+            if (!flow) return;
+            var stages = [
+                { id: 'input', label: 'INPUT', items: [data.flow.input] },
+                { id: 'perception', label: 'PERCEPTION 感知层', items: data.flow.perception },
+                { id: 'memory', label: 'MEMORY 记忆层', items: data.flow.memory },
+                { id: 'brain', label: 'BRAIN 推理层', items: data.flow.brain },
+                { id: 'action', label: 'ACTION 执行层', items: data.flow.action },
+                { id: 'output', label: 'OUTPUT', items: [data.flow.output] }
+            ];
+            var html = '<div class="fw-arch-title">[ ARCHITECTURE FLOW ]</div><div class="fw-arch-pipeline">';
+            stages.forEach(function(stage) {
+                var isIO = (stage.id === 'input' || stage.id === 'output');
+                html += '<div class="fw-arch-stage">';
+                html += '<div class="fw-arch-dot' + (isIO ? ' ' + stage.id : '') + '"></div>';
+                html += '<div class="fw-arch-card">';
+                html += '<div class="arch-layer-name">' + stage.label + '</div>';
+                html += '<div class="arch-items">';
+                stage.items.forEach(function(item) {
+                    html += '<span class="arch-item">' + item + '</span>';
+                });
+                html += '</div></div></div>';
+            });
+            html += '</div>';
+            flow.innerHTML = html;
+        }
+
+        function renderFwDetailCards(fwId) {
+            var container = document.getElementById('fw-detail-cards');
+            if (!container) return;
+            var details = fwDetails[fwId];
+            if (!details) { container.innerHTML = ''; return; }
+            var layers = [
+                { key: 'perception', name: 'PERCEPTION 感知层', color: '#5B7A9A' },
+                { key: 'memory', name: 'MEMORY 记忆层', color: '#B482FF' },
+                { key: 'brain', name: 'BRAIN 推理层', color: '#FFB450' },
+                { key: 'action', name: 'ACTION 执行层', color: '#50DC8C' }
+            ];
+            var html = '';
+            layers.forEach(function(layer) {
+                var items = details[layer.key] || [];
+                html += '<div class="fw-detail-card">';
+                html += '<div class="fw-dc-layer" style="color:' + layer.color + '">[' + layer.name + ']</div>';
+                items.forEach(function(item) {
+                    html += '<div class="fw-dc-item"><strong>' + item.name + '</strong> — ' + item.desc;
+                    if (item.code) {
+                        html += '<span class="fw-dc-code">' + item.code + '</span>';
+                    }
+                    html += '</div>';
+                });
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+
+        // ESC 关闭框架页 / 构建器
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                var fwOverlay = document.getElementById('fw-overlay');
+                var builderOverlay = document.getElementById('builder-overlay');
+                if (builderOverlay && builderOverlay.classList.contains('active')) {
+                    closeBuilder();
+                } else if (fwOverlay && fwOverlay.classList.contains('active')) {
+                    closeFrameworkPage();
+                }
+            }
+        });
+
+        // ========== Agent Builder ==========
+        var builderModules = {
+            perception: [
+                { id: 'text-input', name: 'Text Input', desc: '标准文本输入，多语言支持，BPE Tokenization', icon: 'T' },
+                { id: 'voice-input', name: 'Voice Input (ASR)', desc: 'Whisper 语音转文字，中英文混合识别', icon: 'V' },
+                { id: 'file-watch', name: 'File Watcher', desc: '监听文件系统变更，自动触发 Agent', icon: 'F' },
+                { id: 'web-scrape', name: 'Web Scraper', desc: '自动抓取网页内容并解析为结构化数据', icon: 'W' }
+            ],
+            memory: [
+                { id: 'short-buffer', name: 'Short-term Buffer', desc: '保留最近 N 轮对话，超出窗口自动摘要压缩', icon: 'S' },
+                { id: 'vector-chroma', name: 'Vector DB (Chroma)', desc: '轻量级向量数据库，本地部署，毫秒级检索', icon: 'C' },
+                { id: 'vector-pinecone', name: 'Vector DB (Pinecone)', desc: '云端高性能向量检索，支持百万级文档', icon: 'P' },
+                { id: 'file-memory', name: 'File System Memory', desc: '直接读写本地文件持久化，零外部依赖', icon: 'F' }
+            ],
+            brain: [
+                { id: 'simple-cot', name: 'Chain of Thought', desc: '逐步推理，外化思考过程，可审计可纠错', icon: 'C' },
+                { id: 'react-loop', name: 'ReAct Loop', desc: 'Reason → Act → Observe 循环决策', icon: 'R' },
+                { id: 'tree-thoughts', name: 'Tree of Thoughts', desc: '多路径并行 BFS 搜索 + LLM 评分剪枝', icon: 'T' },
+                { id: 'goal-decomp', name: 'Goal Decomposition', desc: '复杂目标递归拆解为子任务树执行', icon: 'G' }
+            ],
+            action: [
+                { id: 'api-call', name: 'REST API Call', desc: '调用外部 HTTP API，支持 JSON/XML 解析', icon: 'A' },
+                { id: 'shell-exec', name: 'Shell Executor', desc: '沙箱化 Shell 命令执行，超时+权限控制', icon: 'S' },
+                { id: 'file-ops', name: 'File Operations', desc: '读写/搜索/替换本地文件，支持批量操作', icon: 'F' },
+                { id: 'db-query', name: 'Database Query', desc: '执行 SQL 查询，支持 MySQL/PostgreSQL', icon: 'D' }
+            ]
+        };
+
+        var builderSelections = { perception: null, memory: null, brain: null, action: null };
+        var builderDemoRunning = false;
+
+        function openBuilder() {
+            var overlay = document.getElementById('builder-overlay');
+            if (!overlay) return;
+            overlay.style.display = 'block';
+            resizeCodeRainById('code-rain-builder');
+            overlay.scrollTop = 0;
+            setTimeout(function() { overlay.classList.add('active'); }, 50);
+            renderBuilderModules();
+            updateBuilderPipeline();
+        }
+
+        function closeBuilder() {
+            var overlay = document.getElementById('builder-overlay');
+            if (!overlay) return;
+            overlay.classList.remove('active');
+            setTimeout(function() { overlay.style.display = 'none'; }, 400);
+        }
+
+        function renderBuilderModules() {
+            var container = document.getElementById('builder-columns');
+            if (!container) return;
+            var layers = ['perception', 'memory', 'brain', 'action'];
+            var layerNames = ['PERCEPTION', 'MEMORY', 'BRAIN', 'ACTION'];
+            var layerClasses = ['p', 'm', 'b', 'a'];
+            var html = '';
+            layers.forEach(function(key, i) {
+                html += '<div class="builder-column">';
+                html += '<div class="builder-col-header ' + layerClasses[i] + '">' + layerNames[i] + '</div>';
+                builderModules[key].forEach(function(mod) {
+                    var sel = (builderSelections[key] === mod.id) ? ' selected' : '';
+                    html += '<div class="builder-module' + sel + '" data-layer="' + key + '" data-mod="' + mod.id + '" onclick="selectBuilderModule(this)">';
+                    html += '<span class="mod-check">✓</span>';
+                    html += '<div class="mod-icon">' + mod.icon + '</div>';
+                    html += '<div class="mod-name">' + mod.name + '</div>';
+                    html += '<div class="mod-desc">' + mod.desc + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+
+        function selectBuilderModule(el) {
+            var layer = el.dataset.layer;
+            var modId = el.dataset.mod;
+            // 取消同层其他选中
+            document.querySelectorAll('.builder-module[data-layer="' + layer + '"]').forEach(function(m) {
+                m.classList.remove('selected');
+            });
+            el.classList.add('selected');
+            builderSelections[layer] = modId;
+            updateBuilderPipeline();
+            updateBuilderProgress();
+        }
+
+        function updateBuilderProgress() {
+            var filled = 0;
+            ['perception', 'memory', 'brain', 'action'].forEach(function(k, i) {
+                if (builderSelections[k]) filled++;
+            });
+            document.querySelectorAll('.builder-prog-seg').forEach(function(seg, i) {
+                if (i < filled) seg.classList.add('done');
+                else seg.classList.remove('done');
+            });
+            var runBtn = document.getElementById('builder-run-btn');
+            if (runBtn) {
+                runBtn.disabled = (filled < 4);
+            }
+        }
+
+        function updateBuilderPipeline() {
+            ['perception', 'memory', 'brain', 'action'].forEach(function(k, i) {
+                var dot = document.getElementById('bp-dot-' + i);
+                var label = dot ? dot.nextElementSibling : null;
+                var arrow = document.getElementById('bp-arrow-' + i);
+                if (builderSelections[k]) {
+                    if (dot) dot.classList.add('filled');
+                    if (label) label.classList.add('filled');
+                    if (arrow && i < 3) arrow.classList.add('active');
+                } else {
+                    if (dot) dot.classList.remove('filled');
+                    if (label) label.classList.remove('filled');
+                    if (arrow && i < 3) arrow.classList.remove('active');
+                }
+            });
+        }
+
+        function resetBuilder() {
+            builderSelections = { perception: null, memory: null, brain: null, action: null };
+            builderDemoRunning = false;
+            document.querySelectorAll('.builder-module').forEach(function(m) { m.classList.remove('selected'); });
+            updateBuilderPipeline();
+            updateBuilderProgress();
+            var demo = document.getElementById('builder-demo');
+            if (demo) demo.classList.remove('active');
+            document.getElementById('demo-reset').style.display = 'none';
+        }
+
+        function getModuleName(layer, modId) {
+            var mods = builderModules[layer] || [];
+            for (var i = 0; i < mods.length; i++) {
+                if (mods[i].id === modId) return mods[i].name;
+            }
+            return modId;
+        }
+
+        function runBuilderDemo() {
+            if (builderDemoRunning) return;
+            // 检查是否全部选择
+            var allFilled = ['perception','memory','brain','action'].every(function(k) {
+                return !!builderSelections[k];
+            });
+            if (!allFilled) return;
+
+            builderDemoRunning = true;
+            var demo = document.getElementById('builder-demo');
+            demo.classList.add('active');
+            demo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 构建演示步骤
+            var steps = [
+                {
+                    layer: 'INPUT', color: '#888',
+                    content: '用户输入：<span class="demo-highlight">"帮我总结一下最近 AI 领域的重大新闻，并发送邮件给团队"</span>',
+                    module: '原始文本进入系统'
+                },
+                {
+                    layer: 'PERCEPTION', color: '#5B7A9A',
+                    content: '<span class="demo-highlight">' + getModuleName('perception', builderSelections.perception) + '</span> 接收输入 → Tokenization 切分为 token 序列 → 附加用户上下文（身份、偏好、历史）',
+                    module: builderSelections.perception
+                },
+                {
+                    layer: 'MEMORY', color: '#B482FF',
+                    content: '检索相关记忆：用户偏好"AI 领域" → <span class="demo-highlight">' + getModuleName('memory', builderSelections.memory) + '</span> 返回 3 条相关历史记录和团队邮箱列表',
+                    module: builderSelections.memory
+                },
+                {
+                    layer: 'BRAIN', color: '#FFB450',
+                    content: '<span class="demo-highlight">' + getModuleName('brain', builderSelections.brain) + '</span> 推理：分析任务 → 规划步骤 → ①搜索最新AI新闻 ②筛选重大事件 ③生成摘要 ④调用邮件工具 → 决定依次执行',
+                    module: builderSelections.brain
+                },
+                {
+                    layer: 'ACTION', color: '#50DC8C',
+                    content: '<span class="demo-highlight">' + getModuleName('action', builderSelections.action) + '</span> 执行：调用搜索 API → 解析结果 → LLM 生成摘要 → 调用邮件发送接口 → 返回执行状态',
+                    module: builderSelections.action
+                },
+                {
+                    layer: 'OUTPUT', color: '#888',
+                    content: '✅ <span class="demo-highlight">任务完成</span>：邮件已发送至 team@company.com<br>主题："AI 领域本周重大新闻摘要"<br>本轮推理共 5 步，耗时 3.2 秒<br>本次交互已写入长期记忆，下次检索可复用',
+                    module: '结果回传用户，记忆沉淀'
+                }
+            ];
+
+            // 渲染步骤
+            var flow = document.getElementById('demo-flow');
+            var html = '';
+            steps.forEach(function(step, i) {
+                html += '<div class="demo-step" id="demo-step-' + i + '">';
+                html += '<div class="demo-dot"></div>';
+                html += '<div class="demo-body">';
+                html += '<div class="demo-layer" style="color:' + step.color + '">[ ' + step.layer + ' ] ' + step.module + '</div>';
+                html += '<div class="demo-content">' + step.content + '</div>';
+                html += '</div></div>';
+            });
+            flow.innerHTML = html;
+            document.getElementById('demo-reset').style.display = 'none';
+
+            // 动画序列
+            var currentStep = -1;
+            function animateNext() {
+                currentStep++;
+                if (currentStep >= steps.length) {
+                    document.getElementById('demo-reset').style.display = 'block';
+                    builderDemoRunning = false;
+                    return;
+                }
+                // 高亮当前步骤
+                var el = document.getElementById('demo-step-' + currentStep);
+                if (el) {
+                    el.classList.add('animating');
+                    if (currentStep > 0) {
+                        var prev = document.getElementById('demo-step-' + (currentStep - 1));
+                        if (prev) { prev.classList.remove('animating'); prev.classList.add('done'); }
+                    }
+                }
+                setTimeout(animateNext, 1800);
+            }
+            setTimeout(animateNext, 400);
+        }
+
+        function resetBuilderDemo() {
+            builderDemoRunning = false;
+            var demo = document.getElementById('builder-demo');
+            demo.classList.remove('active');
+            document.getElementById('demo-reset').style.display = 'none';
+            setTimeout(function() { runBuilderDemo(); }, 200);
+        }
+
+        // ── Glitch Grid Canvas ──
+        // Grid-based code characters that flicker randomly, creating a "living code" texture.
+        // Inspired by Xiaomi MiMo 100T site's glitch canvas, adapted for light theme.
+        // Architecture: dense character grid + random glitch updates + cursor proximity reveal + ripple rings.
+
+        var codeRainInstances = [];
+        var codeRainById = {};
+
+        function initCodeRain(canvasId) {
+            var canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            var ctx = canvas.getContext('2d');
+            var parent = canvas.parentElement;
+
+            var charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789{}[]()<>|=+-*/&!@#$~?.;:_';
+            var grid = [];          // flat array: one char per cell
+            var cellW = 14;         // cell width in CSS px
+            var cellH = 22;         // cell height in CSS px
+            var fontSize = 12;      // font size
+            var cols, rows, W, H;   // canvas dimensions in CSS px
+            var mouseX = -999, mouseY = -999;
+            var animId;
+            var GLITCH_INTERVAL = 50;   // ms between glitch update passes
+            var GLITCH_FRACTION = 0.05; // fraction of cells to update per pass
+            var lastGlitch = 0;
+            var dpr;
+
+            function randChar() { return charSet[Math.floor(Math.random() * charSet.length)]; }
+
+            function rebuildGrid() {
+                cols = Math.ceil(W / cellW);
+                rows = Math.ceil(H / cellH);
+                var total = cols * rows;
+                grid = [];
+                for (var i = 0; i < total; i++) { grid[i] = randChar(); }
+            }
+
+            function resize() {
+                var isMain = (canvas === document.getElementById('code-rain') || canvas === document.getElementById('code-rain-detail'));
+                W = isMain ? window.innerWidth : (parent.getBoundingClientRect().width || window.innerWidth);
+                H = isMain ? window.innerHeight : (parent.getBoundingClientRect().height || window.innerHeight);
+                dpr = Math.min(window.devicePixelRatio || 1, 2);
+                canvas.width = W * dpr;
+                canvas.height = H * dpr;
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                rebuildGrid();
+            }
+
+            resize();
+
+            function updateGlitch(ts) {
+                if (ts - lastGlitch < GLITCH_INTERVAL) return;
+                lastGlitch = ts;
+                var count = Math.max(1, Math.floor(grid.length * GLITCH_FRACTION));
+                for (var i = 0; i < count; i++) {
+                    grid[Math.floor(Math.random() * grid.length)] = randChar();
+                }
+            }
+
+            function draw(ts) {
+                ctx.clearRect(0, 0, W, H);
+                updateGlitch(ts);
+
+                ctx.font = fontSize + 'px "JetBrains Mono", monospace';
+                ctx.textBaseline = 'top';
+
+                // Draw grid — iterate by row then column so we can batch same-opacity chars
+                for (var r = 0; r < rows; r++) {
+                    var rowY = r * cellH;
+                    for (var c = 0; c < cols; c++) {
+                        var idx = r * cols + c;
+                        var cx = c * cellW;
+                        var cy = rowY;
+
+                        // Cursor proximity — distance to cell center
+                        var dx = mouseX - (cx + cellW * 0.5);
+                        var dy = mouseY - (cy + cellH * 0.5);
+                        var dist = Math.sqrt(dx * dx + dy * dy);
+                        var prox = dist < 220 ? Math.pow(1 - dist / 220, 2.5) : 0;
+
+                        // Base alpha: subtle wave pattern across the grid (avoids uniform flatness)
+                        var wave = (Math.sin(r * 0.55 + c * 0.3 + ts * 0.0008) * 0.5 + 0.5);
+                        var baseAlpha = 0.025 + wave * 0.02;
+
+                        // Cursor boosts alpha dramatically within range
+                        var alpha = baseAlpha + prox * 0.25;
+
+                        if (alpha < 0.015) continue; // skip near-invisible chars
+
+                        // Accent color when cursor is close; otherwise subtle black
+                        if (prox > 0.35) {
+                            ctx.fillStyle = 'rgba(91,122,154,' + alpha + ')';
+                        } else {
+                            ctx.fillStyle = 'rgba(0,0,0,' + alpha + ')';
+                        }
+
+                        ctx.fillText(grid[idx], cx, cy);
+                    }
+                }
+
+                animId = requestAnimationFrame(draw);
+            }
+
+            function onMouseMove(e) {
+                var rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+            }
+
+            function onMouseLeave() { mouseX = -999; mouseY = -999; }
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseleave', onMouseLeave);
+
+            animId = requestAnimationFrame(draw);
+
+            var inst = {
+                canvas: canvas,
+                resize: resize,
+                stop: function() { cancelAnimationFrame(animId); }
+            };
+            codeRainInstances.push(inst);
+            codeRainById[canvasId] = inst;
+        }
+
+        function resizeCodeRainById(id) {
+            var inst = codeRainById[id];
+            if (inst) { inst.resize(); }
+        }
+
+        function initAllCodeRains() {
+            initCodeRain('code-rain');
+            initCodeRain('code-rain-detail');
+            initCodeRain('code-rain-fw');
+            initCodeRain('code-rain-builder');
+        }
+
+        initAllCodeRains();
+
+        window.addEventListener('resize', function() {
+            codeRainInstances.forEach(function(inst) { inst.resize(); });
+        });
+    </script>
+</body>
+</html>
+
