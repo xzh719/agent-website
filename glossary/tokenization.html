@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glossary · Tokenization & BPE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+        :root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+        .container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+        .back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+        .back-link:hover { color: var(--accent); }
+        .back-link span { font-size: 14px; }
+        .page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+        h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+        .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+        .term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+        .term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+        .term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+        .term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+        .term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+        .term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+        .term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+        .term-section ul li::before { content: '·'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+        .code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+        .code-block .kw { color: var(--accent); }
+        .code-block .cm { color: #555; }
+        .insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+        .insight strong { color: var(--accent); }
+        .related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+        .related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+        .related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+        hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+    <div class="page-label">[ GLOSSARY · 01 ]</div>
+    <h1>Tokenization</h1>
+    <p class="subtitle">理解大模型如何"阅读"文字——从人类语言到机器可计算的数字序列。</p>
+
+    <!-- Token -->
+    <div class="term-section">
+        <h2>Token</h2>
+        <div class="cn-name">词元 / 令牌</div>
+        <h3>白话解释</h3>
+        <p>Token 是大模型处理文本的<strong style="color:var(--accent)">最小单位</strong>。你可以把它理解为"模型认识的单词"，但它不完全是自然语言中的单词——一个 token 可能是一个完整的常用词（如 "the"），也可能是一个词的一部分（如 "play" + "ing" → 两个 token），或者一个标点符号，甚至是一个空格。</p>
+        <p>打个比方：如果说人类用"字"和"词"来阅读，那么大模型就用 token 来阅读。不同的是，模型的"词汇表"是经过数学优化的——它会把出现频率高的字符组合合并成一个 token，把罕见的组合拆开。</p>
+        <h3>为什么重要</h3>
+        <p>Token 数量直接决定了三件事：<strong>成本</strong>（API 按 token 计费）、<strong>速度</strong>（token 越多生成越慢）、<strong>上下文容量</strong>（每个模型有 token 上限）。中文通常比英文消耗更多 token，因为每个汉字常常被拆分为 1-3 个 token，而英文单词往往 1 个单词 = 1 个 token。这意味着同样的内容，中文输入的 API 费用可能比英文高 30-50%。</p>
+        <h3>一个直观的例子</h3>
+        <div class="code-block"><span class="cm">// 英文: "I love AI" → 3 tokens</span>
+<span class="kw">["I", " love", " AI"]</span>
+
+<span class="cm">// 中文: "我爱人工智能" → 可能 5-7 tokens</span>
+<span class="kw">["我", "爱", "人工", "智能"] 或 ["我", "爱", "人", "工", "智", "能"]</span>
+
+<span class="cm">// 这就是为什么同样的语义，中文 token 消耗更大</span></div>
+    </div>
+
+    <!-- BPE -->
+    <div class="term-section">
+        <h2>BPE (Byte Pair Encoding)</h2>
+        <div class="cn-name">字节对编码</div>
+        <h3>白话解释</h3>
+        <p>BPE 是目前主流大模型（GPT 系列、Claude 等）构建 token 词表的核心算法。它的思路出奇地简单：<strong>从字符级开始，反复合并出现频率最高的相邻对，直到词表达到预设大小</strong>（比如 100,000 个 token）。</p>
+        <p>这个算法的巧妙之处在于——它不需要理解语言。它只是统计"哪两个东西经常挨在一起出现"，然后机械地把它们合并。结果却是：常用词被合并成单个 token（高效），罕见词保持拆分状态（灵活），新词可以通过已有子词拼出来（不会遇到"不认识的字"）。</p>
+        <h3>工作原理 · 逐步推演</h3>
+        <p>假设我们有一个迷你语料库，BPE 的训练过程如下：</p>
+        <div class="code-block"><span class="cm">// 初始状态：每个字符就是一个 token</span>
+语料: "low lower lowest"
+
+<span class="kw">Step 1:</span> 统计相邻对频率
+  l-o: 3次  o-w: 3次  w-空格: 1次  w-e: 2次  w-l: 1次  ...
+  最高频: l-o (3次) → 合并为 "lo"
+
+<span class="kw">Step 2:</span> 词表加入 "lo"，继续统计
+  lo-w: 3次  → 合并为 "low"
+  
+<span class="kw">Step 3:</span> 词表加入 "low"，继续统计
+  low-e: 2次  → 合并为 "lowe"
+  
+<span class="kw">Step N:</span> 不断迭代，最终词表包含:
+  ["l", "o", "w", "e", "r", "s", "t", " ", "lo", "low", "er", "est", ...]
+
+<span class="cm">// 实际 GPT 词表约 100,000 个 token，覆盖几十种语言</span></div>
+        <div class="insight">
+            <strong>关键洞察：</strong>BPE 是一种"数据驱动"的压缩算法。它不依赖语言学规则——不需要词典、不需要语法知识。只靠统计频率，就能自动发现 "ing"、"tion"、"pre" 这些有意义的子词单元。这就是为什么同一个 BPE 词表可以同时处理英文、中文、代码、甚至 emoji——它只是统计字节对，不关心语义。
+        </div>
+        <h3>对使用者的实际影响</h3>
+        <ul>
+            <li>英文常用词 ≈ 1 token/词，中文 ≈ 1.5-3 tokens/汉字 → 中文 API 成本更高</li>
+            <li>代码中的缩进空格每个都是独立 token → 用 Tab 比空格更省 token</li>
+            <li>专有名词、罕见字会被拆得更碎 → token 消耗更大</li>
+            <li>不同模型的 tokenizer 不同 → 同样的文本在不同模型上的 token 数不一样</li>
+        </ul>
+    </div>
+
+    <!-- Tokenization -->
+    <div class="term-section">
+        <h2>Tokenization</h2>
+        <div class="cn-name">分词 / 词元化</div>
+        <h3>白话解释</h3>
+        <p>Tokenization 就是把原始文本转换成 token 序列的过程。它是大模型处理一切输入的<strong>第一道工序</strong>——在你向 ChatGPT 发送消息后、模型"理解"你的话之前，你的文字首先经过 tokenizer 被切成一个个 token，然后每个 token 被映射为词表中的数字 ID。</p>
+        <div class="code-block"><span class="cm">// Tokenization 的完整流程</span>
+输入文本: "Agent 架构解析"
+
+<span class="kw">Step 1 · 预处理:</span> 规范化 Unicode、处理特殊字符
+  → "Agent 架构解析"
+
+<span class="kw">Step 2 · BPE 分词:</span> 用训练好的词表切分
+  → ["Agent", " ", "架构", "解析"]
+  <span class="cm">// 注意："架构"和"解析"各自被合并为一个 token</span>
+
+<span class="kw">Step 3 · 映射为 ID:</span> 每个 token 查表得到数字
+  → [1724, 220, 48621, 39105]
+
+<span class="kw">Step 4 · 送入模型:</span> ID 序列 → Embedding 层 → Transformer</div>
+        <div class="insight">
+            <strong>关键洞察：</strong>模型从未"看到"过文字——它只看到数字。Tokenization 是自然语言和数学模型之间的翻译层。这层翻译的质量直接影响模型的理解能力：如果分词方式不合理（比如把"机器学习"拆成"机"+"器"+"学"+"习"而不是"机器"+"学习"），模型就需要消耗更多推理能力去"拼接"语义。
+        </div>
+    </div>
+
+    <hr>
+    <div class="related">
+        <span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+        <a href="embedding.html">Embedding · 向量嵌入</a>
+        <a href="context-window.html">Context Window · 上下文窗口</a>
+        <a href="llm-basics.html">LLM 基础</a>
+    </div>
+</div>
+</body>
+</html>
