@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glossary · Function Calling & Tool Use</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=JetBrains+Mono:wght@100;400&display=swap');
+:root { --bg: #F9F6F0; --surface: #F0ECE4; --accent: #5B7A9A; --text: #1C1C1C; --text2: #6E6E6E; --border: rgba(0,0,0,0.08); }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; line-height: 1.85; min-height: 100vh; }
+.container { max-width: 780px; margin: 0 auto; padding: 80px 32px 100px; }
+.back-link { display: inline-flex; align-items: center; gap: 8px; color: var(--text2); text-decoration: none; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1px; margin-bottom: 48px; transition: color 0.3s; }
+.back-link:hover { color: var(--accent); }
+.page-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent); letter-spacing: 3px; margin-bottom: 16px; }
+h1 { font-size: 32px; font-weight: 200; letter-spacing: 2px; margin-bottom: 8px; }
+.subtitle { color: var(--text2); font-size: 14px; margin-bottom: 60px; }
+.term-section { margin-bottom: 64px; padding: 40px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.term-section h2 { font-size: 22px; font-weight: 400; color: var(--accent); margin-bottom: 6px; letter-spacing: 1px; }
+.term-section .cn-name { font-size: 13px; color: var(--text2); margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; }
+.term-section h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 28px 0 10px; letter-spacing: 1px; text-transform: uppercase; }
+.term-section p { font-size: 14px; color: var(--text2); margin-bottom: 14px; }
+.term-section ul { list-style: none; padding: 0; margin: 12px 0; }
+.term-section ul li { font-size: 14px; color: var(--text2); padding: 4px 0 4px 20px; position: relative; }
+.term-section ul li::before { content: '\00b7'; position: absolute; left: 6px; color: var(--accent); font-weight: bold; }
+.code-block { background: #EEEAE2; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text2); line-height: 1.7; overflow-x: auto; white-space: pre; }
+.code-block .kw { color: var(--accent); }
+.code-block .cm { color: #555; }
+.insight { border-left: 2px solid var(--accent); padding: 14px 20px; margin: 20px 0; background: rgba(91,122,154,0.04); font-size: 13px; color: var(--text); }
+.insight strong { color: var(--accent); }
+.related { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--border); }
+.related a { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--text2); text-decoration: none; padding: 6px 14px; border: 1px solid var(--border); border-radius: 4px; transition: all 0.3s; letter-spacing: 0.5px; }
+.related a:hover { color: var(--accent); border-color: rgba(91,122,154,0.3); background: rgba(91,122,154,0.04); }
+hr { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+</style>
+</head>
+<body>
+<div class="container">
+<a class="back-link" href="../index.html"><span>&larr;</span> BACK_TO_HOME</a>
+<div class="page-label">[ GLOSSARY · 08 ]</div>
+<h1>Tool Use · 工具调用</h1>
+<p class="subtitle">让 LLM 从"嘴炮"变成"实干家"——如何安全地让模型操作真实的文件、API 和系统。</p>
+
+<div class="term-section">
+<h2>Function Calling</h2>
+<div class="cn-name">函数调用 / 工具调用</div>
+<h3>白话解释</h3>
+<p>Function Calling 是让 LLM 调用外部工具的核心机制。关键理解：<strong>LLM 自己不执行代码——它只是输出一个结构化的 JSON，告诉框架"我想调用这个函数，参数是这些"。</strong>框架拦截这个 JSON，在真实环境中执行，然后把结果返还给 LLM。</p>
+<p>你可以把 LLM 想象成一个"指挥家"而不是"演奏者"。它说"现在应该调用天气 API，城市参数是北京"，但真正发 HTTP 请求、解析返回数据的是 Agent 框架。这种设计不是技术限制，而是<strong>安全边界</strong>——永远不要让不受信任的文本生成器直接控制系统。</p>
+<h3>一次完整的 Function Calling 流程</h3>
+<div class="code-block"><span class="cm">// Step 1: 框架向 LLM 声明可用工具</span>
+工具列表: [
+  { name: "get_weather", params: { city: string } },
+  { name: "search_web", params: { query: string } },
+  { name: "read_file",   params: { path: string } }
+]
+
+<span class="cm">// Step 2: 用户提问</span>
+"帮我查北京天气，如果下雨提醒我带伞"
+
+<span class="cm">// Step 3: LLM 推理后输出 function call (JSON)</span>
+{
+  "tool_call": {
+    "name": "get_weather",
+    "arguments": { "city": "北京" }
+  }
+}
+
+<span class="cm">// Step 4: 框架执行——真实的 API 调用</span>
+response = await fetch("https://api.weather.com/...")
+
+<span class="cm">// Step 5: 结果反馈给 LLM 做下一轮推理</span>
+Observation: { weather: "小雨", temp: "18°C" }
+→ LLM: "北京今天小雨，建议带伞"</div>
+<div class="insight">
+<strong>关键洞察：</strong>Function Calling 的设计遵循"最小权限原则"——LLM 只能提议调用预先注册的工具，不能动态生成任意代码执行。工具的"白名单"由开发者控制，LLM 无法越权。这就是为什么你可以放心地让 Agent 操作文件系统：它只能调用你允许的工具，参数还要经过校验。
+</div>
+</div>
+
+<div class="term-section">
+<h2>JSON Schema</h2>
+<div class="cn-name">JSON Schema · 参数校验</div>
+<h3>白话解释</h3>
+<p>JSON Schema 是一种描述 JSON 数据结构和约束的规范。在 Agent 系统中，每个工具都用 JSON Schema 来声明自己的接口——就像函数的"类型签名"：参数叫什么、什么类型、是否必填、有哪些合法取值。</p>
+<p>框架在把 LLM 输出的参数传给工具之前，先用 JSON Schema 做校验。如果 LLM 幻觉出一个不存在的参数名、填了错误的数据类型、或者漏掉了必填字段——校验层会拦截并反馈错误，而不是让错误传播到工具执行环节。</p>
+<div class="code-block"><span class="cm">// 工具: read_file 的 JSON Schema 定义</span>
+{
+  "name": "read_file",
+  "description": "读取指定路径的文件内容",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "path": {
+        "type": "string",
+        "description": "文件绝对路径"
+      },
+      "encoding": {
+        "type": "string",
+        "enum": ["utf-8", "base64"],
+        "default": "utf-8"
+      }
+    },
+    "required": ["path"]
+  }
+}
+
+<span class="cm">// 校验示例</span>
+LLM 输出: { "path": "../../etc/passwd" }
+校验结果: ✓ 通过（path 是 string，必填项已提供）
+
+LLM 输出: { "encoding": "latin-1" }
+校验结果: ✗ 拦截！（缺少必填项 path；encoding 不在枚举中）</div>
+</div>
+
+<div class="term-section">
+<h2>沙箱 (Sandbox)</h2>
+<div class="cn-name">Sandbox / 隔离执行环境</div>
+<h3>白话解释</h3>
+<p>沙箱是一个隔离的执行环境，工具调用在其中运行。它和"外面"的系统有一道硬隔离墙：沙箱内的代码不能随意访问文件系统、不能连接任意网络地址、不能修改系统配置。即使 LLM 输出了恶意指令，破坏也被限制在沙箱内部。</p>
+<p>沙箱的实现方式多种多样：Docker 容器、虚拟机、WebAssembly 运行时、chroot jail、或者进程级权限限制。选择哪种取决于安全需求等级——处理用户上传代码的 Agent 需要比处理内部 API 调用的 Agent 更强的隔离。</p>
+<div class="code-block"><span class="cm">// 沙箱的安全层级（从弱到强）</span>
+
+<span class="kw">Level 1 · 进程限制:</span> 限制文件系统访问路径、网络白名单
+<span class="kw">Level 2 · 容器隔离:</span> Docker 容器，独立文件系统 + 网络命名空间
+<span class="kw">Level 3 · 虚拟机:</span> 完整 OS 隔离，即使内核漏洞也无法逃逸
+<span class="kw">Level 4 · 物理隔离:</span> 独立物理机器，用于最高安全等级场景
+
+<span class="cm">// Claude Code 的沙箱策略</span>
+<span class="cm">// 每个命令在独立进程中执行，有超时限制</span>
+<span class="cm">// 文件写入有权限检查，禁止操作系统关键路径</span></div>
+</div>
+
+<div class="term-section">
+<h2>指数退避 (Exponential Backoff)</h2>
+<div class="cn-name">Exponential Backoff / 重试策略</div>
+<h3>白话解释</h3>
+<p>指数退避是一种重试策略：当操作失败时，不是立即重试，而是等待一段时间再试。每次失败后等待时间翻倍——第 1 次等 1 秒，第 2 次等 2 秒，第 3 次等 4 秒，以此类推，直到成功或达到最大重试次数。</p>
+<p>为什么是"指数"而非"固定间隔"？因为大多数失败是由瞬时过载引起的（API 限流、网络抖动）。如果所有请求在同一时刻重试，会造成"惊群效应"——瞬时流量尖峰让问题更严重。指数退避让重试请求在时间上分散，给服务恢复的窗口。</p>
+<div class="code-block"><span class="cm">// 指数退避 + 随机抖动 (Jitter)</span>
+<span class="kw">async function</span> retryWithBackoff(fn, maxRetries = 5) {
+  <span class="kw">for</span> (<span class="kw">let</span> i = 0; i &lt; maxRetries; i++) {
+    <span class="kw">try</span> {
+      <span class="kw">return</span> <span class="kw">await</span> fn();
+    } <span class="kw">catch</span> (err) {
+      <span class="kw">if</span> (i === maxRetries - 1) <span class="kw">throw</span> err;
+      <span class="cm">// 等待: 1s → 2s → 4s → 8s → 16s</span>
+      <span class="cm">// 加随机抖动 ±25% 避免惊群</span>
+      <span class="kw">const</span> base = Math.pow(2, i) * 1000;
+      <span class="kw">const</span> jitter = base * 0.25 * (Math.random() * 2 - 1);
+      <span class="kw">await</span> sleep(base + jitter);
+    }
+  }
+}</div>
+</div>
+
+<div class="term-section">
+<h2>Scratchpad (工作记忆 / 暂存区)</h2>
+<div class="cn-name">Scratchpad / Working Memory</div>
+<h3>白话解释</h3>
+<p>Scratchpad 是 Agent 在任务执行过程中用来记录中间状态和临时推理的"草稿纸"。它不是持久化的长期记忆（那些存向量数据库），而是当前任务的"工作台"——正在执行的子任务、已完成的步骤、下一步计划、临时计算结果。</p>
+<p>人类解题时会用草稿纸写中间步骤，Agent 也一样。Scratchpad 的关键作用是在多步 ReAct 循环中保持上下文连贯——每轮循环 LLM 都能看到之前的草稿，了解自己做到哪了、接下来该做什么。</p>
+<div class="insight">
+<strong>关键洞察：</strong>Scratchpad 解决了 LLM 的"金鱼记忆"问题——在多步任务中，LLM 容易忘记最初的规划或在中间步骤中迷失方向。Scratchpad 充当了外部锚点，让每一步推理都有明确的上下文参照。它和上下文窗口的区别在于：上下文窗口是被动记录（所有历史消息），Scratchpad 是主动整理（只保留结构化关键信息）。
+</div>
+</div>
+
+<hr>
+<div class="related">
+<span style="color:var(--text2);font-size:11px;margin-right:8px;align-self:center">相关术语 →</span>
+<a href="reasoning.html">CoT · ReAct · 推理范式</a>
+<a href="llm-basics.html">LLM 基础 · 幻觉</a>
+<a href="vector-search.html">Vector Search · 向量检索</a>
+<a href="rag.html">RAG · 检索增强生成</a>
+</div>
+</div>
+</body>
+</html>
